@@ -301,7 +301,8 @@ impl Device {
     }
 
     /// Split the device into smaller aggregate devices containing one or more compute units that
-    /// all share part of a cache hierarchy (ref: OpenCL specification).
+    /// all share part of a cache hierarchy (ref: OpenCL specification) indicated by the
+    /// `affinity` bitfield.
     ///
     /// # Examples
     /// ```
@@ -312,8 +313,7 @@ impl Device {
     /// // `device` is an object of type `Device`.
     /// if let Ok(sub_devices) = device.partition_by_affinity_domain(
     ///     device::AffinityDomainBuilder::new().next_partitionable().finish()
-    /// )
-    /// {
+    /// ) {
     ///     // The device was split along the outermost cache line.
     ///     for sub in sub_devices {
     ///         assert!(
