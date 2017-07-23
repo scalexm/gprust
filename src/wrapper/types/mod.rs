@@ -2,14 +2,16 @@
 
 /// Macro for high-level implementation of OpenCL bitfields boilerplate.
 macro_rules! bitfield {
-    ($name: ident, $($fun: ident => $ffi: expr),*) => {
+    ($name: ident, $type: expr, $([$fun: ident, $fun_name: expr] => $ffi: expr),*) => {
         #[derive(Clone, Copy, PartialEq, Eq, Hash)]
+        #[doc="High-level bitfield mapping to `"] #[doc=$type] #[doc="`."]
         pub struct $name {
             bitfield: ::wrapper::ffi::cl_bitfield,
         }
 
         impl $name {
             $(
+            #[doc="Return `true` if `"] #[doc=$fun_name] #[doc="` bit is set."]
             pub fn $fun(&self) -> bool {
                 self.bitfield & $ffi == $ffi
             }
@@ -41,14 +43,16 @@ macro_rules! bitfield {
 
 /// Macro used in combination with `bitfield!` for defining a builder struct for a bitfield.
 macro_rules! bitfield_builder {
-    ([$name: ident, $builder: ident], $($fun: ident => $ffi: expr),*) => {
-        bitfield!($name, $($fun => $ffi),*);
+    ([$name: ident, $builder: ident, $name_expr: expr], $type: expr, $([$fun: ident, $fun_name: expr] => $ffi: expr),*) => {
+        bitfield!($name, $type, $([$fun, $fun_name] => $ffi),*);
 
+        #[doc="Builder pattern struct for `"] #[doc=$name_expr] #[doc="`."]
         pub struct $builder {
             bitfield: ::wrapper::ffi::cl_bitfield,
         }
 
         impl $builder {
+            /// Initialize the builder with a zeroed bitfield.
             pub fn new() -> Self {
                 $builder {
                     bitfield: 0,
@@ -56,12 +60,14 @@ macro_rules! bitfield_builder {
             }
 
             $(
+            #[doc="Set `"] #[doc=$fun_name] #[doc="` bit."]
             pub fn $fun(&mut self) -> &mut Self {
                 self.bitfield |= $ffi;
                 self
             }
             )*
 
+            #[doc="Output a `"] #[doc=$name_expr] #[doc="` bitfield."]
             pub fn finish(&self) -> $name {
                 $name {
                     bitfield: self.bitfield,
@@ -73,10 +79,12 @@ macro_rules! bitfield_builder {
 
 /// Macro for high-level implementation of OpenCL enums boilerplate.
 macro_rules! enumz {
-    ($name: ident, $type: ty, $($field: ident => $ffi: pat),*) => {
+    ($name: ident, $type: ty, $type_expr: expr,  $($field: ident => [$ffi: pat, $ffi_name: expr]),*) => {
+        #[doc="High-level enum mapping to `"] #[doc=$type_expr] #[doc="`."]
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
         pub enum $name {
             $(
+            #[doc="High-level variant for `"] #[doc=$ffi_name] #[doc="`."]
             $field
             ),*
         }

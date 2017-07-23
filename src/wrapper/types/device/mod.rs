@@ -7,14 +7,14 @@ use wrapper::information::*;
 use errors::*;
 use std::fmt;
 
-/// High-level bitfield mapping to `cl_device_type`.
 bitfield_builder!(
-    [Type, TypeBuilder],
-    gpu => ffi::CL_DEVICE_TYPE_GPU,
-    cpu => ffi::CL_DEVICE_TYPE_CPU,
-    accelerator => ffi::CL_DEVICE_TYPE_ACCELERATOR,
-    default => ffi::CL_DEVICE_TYPE_DEFAULT,
-    custom => ffi::CL_DEVICE_TYPE_CUSTOM
+    [Type, TypeBuilder, "Type"],
+    "cl_device_type",
+    [gpu, "gpu"] => ffi::CL_DEVICE_TYPE_GPU,
+    [cpu, "cpu"] => ffi::CL_DEVICE_TYPE_CPU,
+    [accelerator, "accelerator"] => ffi::CL_DEVICE_TYPE_ACCELERATOR,
+    [default, "default"] => ffi::CL_DEVICE_TYPE_DEFAULT,
+    [custom, "custom"] => ffi::CL_DEVICE_TYPE_CUSTOM
 );
 
 impl Type {
@@ -26,68 +26,68 @@ impl Type {
 /// Special bitfield value for `Type` combining all device types.
 pub const ALL: Type = Type { bitfield: ffi::CL_DEVICE_TYPE_ALL };
 
-/// High-level bitfield mapping to `cl_device_fp_config`.
 bitfield!(
     FpConfig,
-    denorm => ffi::CL_FP_DENORM,
-    inf_nan => ffi::CL_FP_INF_NAN,
-    round_to_nearest => ffi::CL_FP_ROUND_TO_NEAREST,
-    round_to_zero => ffi::CL_FP_ROUND_TO_ZERO,
-    round_to_inf => ffi::CL_FP_ROUND_TO_INF,
-    fma => ffi::CL_FP_FMA,
-    soft_float => ffi::CL_FP_SOFT_FLOAT
+    "cl_device_fp_config",
+    [denorm, "denorm"] => ffi::CL_FP_DENORM,
+    [inf_nan, "inf_nan"] => ffi::CL_FP_INF_NAN,
+    [round_to_nearest, "round_to_nearest"] => ffi::CL_FP_ROUND_TO_NEAREST,
+    [round_to_zero, "round_to_zero"] => ffi::CL_FP_ROUND_TO_ZERO,
+    [round_to_inf, "round_to_inf"] => ffi::CL_FP_ROUND_TO_INF,
+    [fma, "fma"] => ffi::CL_FP_FMA,
+    [soft_float, "soft_float"] => ffi::CL_FP_SOFT_FLOAT
 );
 
-/// High-level bitfield mapping to `cl_device_affinity_domain`.
 bitfield!(
     PartitionAffinityDomain,
-    numa => ffi::CL_DEVICE_AFFINITY_DOMAIN_NUMA,
-    l4_cache => ffi::CL_DEVICE_AFFINITY_DOMAIN_L4_CACHE,
-    l3_cache => ffi::CL_DEVICE_AFFINITY_DOMAIN_L3_CACHE,
-    l2_cache => ffi::CL_DEVICE_AFFINITY_DOMAIN_L2_CACHE,
-    l1_cache => ffi::CL_DEVICE_AFFINITY_DOMAIN_L1_CACHE,
-    next_partitionable => ffi::CL_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE
+    "cl_device_affinity_domain",
+    [numa, "numa"] => ffi::CL_DEVICE_AFFINITY_DOMAIN_NUMA,
+    [l4_cache, "l4_cache"] => ffi::CL_DEVICE_AFFINITY_DOMAIN_L4_CACHE,
+    [l3_cache, "l3_cache"] => ffi::CL_DEVICE_AFFINITY_DOMAIN_L3_CACHE,
+    [l2_cache, "l2_cache"] => ffi::CL_DEVICE_AFFINITY_DOMAIN_L2_CACHE,
+    [l1_cache, "l1_cache"] => ffi::CL_DEVICE_AFFINITY_DOMAIN_L1_CACHE,
+    [next_partitionable, "next_partitionable"] => ffi::CL_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE
 );
 
-/// High-level bitfield mapping to `cl_device_exec_capabilities`.
 bitfield!(
     ExecutionCapabilities,
-    kernel => ffi::CL_EXEC_KERNEL,
-    native_kernel => ffi::CL_EXEC_NATIVE_KERNEL
+    "cl_device_exec_capabilities",
+    [kernel, "kernel"] => ffi::CL_EXEC_KERNEL,
+    [native_kernel, "native_kernel"] => ffi::CL_EXEC_NATIVE_KERNEL
 );
 
-/// High-level bitfield mapping to `cl_command_queue_properties`.
 bitfield!(
     QueueProperties,
-    out_of_order_exec_mode_enable => ffi::CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE,
-    profiling_enable => ffi::CL_QUEUE_PROFILING_ENABLE
+    "cl_command_queue_properties",
+    [out_of_order_exec_mode_enable, "out_of_order_exec_mode_enable"] => ffi::CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE,
+    [profiling_enable, "profiling_enable"] => ffi::CL_QUEUE_PROFILING_ENABLE
 );
 
-/// High-level enum mapping to `cl_device_mem_cache_type`.
 enumz!(
     GlobalMemCacheType,
     ffi::cl_device_mem_cache_type,
-    None => ffi::CL_NONE,
-    ReadOnly => ffi::CL_READ_ONLY_CACHE,
-    ReadWrite => ffi::CL_READ_WRITE_CACHE
+    "cl_device_mem_cache_type",
+    None => [ffi::CL_NONE, "CL_NONE"],
+    ReadOnly => [ffi::CL_READ_ONLY_CACHE, "CL_READ_ONLY_CACHE"],
+    ReadWrite => [ffi::CL_READ_WRITE_CACHE, "CL_READ_WRITE_CACHE"]
 );
 
-/// High-level enum mapping to `cl_device_local_mem_type`.
 enumz!(
     LocalMemType,
     ffi::cl_device_local_mem_type,
-    None => ffi::CL_NONE,
-    Local => ffi::CL_LOCAL,
-    Global => ffi::CL_GLOBAL
+    "cl_device_local_mem_type",
+    None => [ffi::CL_NONE, "CL_NONE"],
+    Local => [ffi::CL_LOCAL, "CL_LOCAL"],
+    Global => [ffi::CL_GLOBAL, "CL_GLOBAL"]
 );
 
-/// High-level enum mapping to `cl_device_partition_property`.
 enumz!(
     PartitionProperty,
     ffi::cl_device_partition_property,
-    PartitionEqually => ffi::CL_DEVICE_PARTITION_EQUALLY,
-    PartitionByCounts => ffi::CL_DEVICE_PARTITION_BY_COUNTS,
-    PartitionByAffinityDomain => ffi::CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN
+    "cl_device_partition_property",
+    PartitionEqually => [ffi::CL_DEVICE_PARTITION_EQUALLY, "CL_DEVICE_PARTITION_EQUALLY"],
+    PartitionByCounts => [ffi::CL_DEVICE_PARTITION_BY_COUNTS, "CL_DEVICE_PARTITION_BY_COUNTS"],
+    PartitionByAffinityDomain => [ffi::CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN, "CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN"]
 );
 
 /// `Device` is a high-level type which maps to the low-level `cl_device_id` OpenCL type.
@@ -145,7 +145,8 @@ impl Device {
     /// Return `true` if the device is a sub device.
     ///
     /// # Panics
-    /// Same as `get_info`.
+    /// Same as `get_info`, but `CL_INVALID_VALUE` should never be triggered if the device
+    /// correctly support OpenCL 1.2.
     pub fn is_subdevice(&self) -> bool {
         match self.get_info::<information::ParentDevice>() {
             ParentDevice::Device(_) => true,
@@ -156,9 +157,24 @@ impl Device {
     /// Query an information to the device. `T` should be a marker type from the `information`
     /// module.
     ///
+    /// # Examples
+    /// ```
+    /// # extern crate gprust;
+    /// # use gprust::{Platform, device};
+    ///
+    /// # fn main() {
+    /// # let device = Platform::list().pop().unwrap().get_devices(device::ALL).pop().unwrap();
+    /// // `device` is an object of type `Device`.
+    /// let name = device.get_info::<device::information::Name>();
+    /// # }
+    /// ```
+    ///
     /// # Panics
-    /// Panic if the host or a device fails to allocate resources.
-    pub fn get_info<T: information::private::DeviceInformation>(&self) -> T::Result {
+    /// Panic if the host or a device fails to allocate resources, or if an invalid information
+    /// param is passed (should only happen when a user incorrectly implements
+    /// `PlatformInformation` on their own or if the information is not supported on the device
+    /// and cargo features have not been set correctly, otherwise it is a bug).
+    pub fn get_info<T: information::DeviceInformation>(&self) -> T::Result {
         use std::os::raw::c_void;
 
         let result = unsafe {

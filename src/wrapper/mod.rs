@@ -1,5 +1,6 @@
 //! A module for wrapping OpenCL functions and types.
 
+/// A macro for panicking on some expected error.
 macro_rules! expect {
     ($result: expr, $($error: expr),*) => {
         match $result {
