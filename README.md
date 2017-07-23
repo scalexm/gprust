@@ -1,3 +1,3 @@
 # gprust
 
-Rust GPGPU library for OpenCL
+Rust wrapper for OpenCL, intended to become a GPGPU library.
