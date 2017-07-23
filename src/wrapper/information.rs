@@ -165,3 +165,12 @@ result_impl!(usize);
 result_impl!(isize);
 result_impl!(ffi::cl_platform_id);
 result_impl!(ffi::cl_device_id);
+
+/// A trait describing a piece of information.
+pub trait Information<T> {
+    /// Type of the information result.
+    type Result: InformationResult<usize>;
+
+    /// OpenCL constant for identifying the piece of information, e.g. `CL_DEVICE_ADDRESS_BITS`.
+    fn id() -> T;
+}

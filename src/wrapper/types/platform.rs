@@ -10,29 +10,14 @@ pub mod information {
     //! A module containing the information marker types for `Platform`.
 
     use wrapper::ffi;
-    use wrapper::information::InformationResult;
+    use wrapper::information::*;
 
     /// A trait implemented by marker types for retrieving information through `clGetPlatformInfo`.
-    pub trait PlatformInformation {
-            /// Type of the information result.
-            type Result: InformationResult<usize>;
-
-            /// OpenCL constant for identifying the piece of information, e.g. `CL_PLATFORM_PROFILE`.
-            fn id() -> ffi::cl_platform_info;
-        }
+    pub trait PlatformInformation: Information<ffi::cl_platform_info> { }
 
     macro_rules! info_impl {
         ($type: ident, $result: ty, $id: expr, $id_name: expr, $test_fun: ident) => {
-            #[doc="Marker type mapping to `"] #[doc=$id_name] #[doc="`."]
-            pub struct $type;
-
-            impl PlatformInformation for $type {
-                type Result = $result;
-
-                fn id() -> ffi::cl_platform_info {
-                    $id
-                }
-            }
+            generic_info_impl!(PlatformInformation, ffi::cl_platform_info, $type, $result, $id, $id_name);
 
             #[test]
             fn $test_fun() {

@@ -186,5 +186,23 @@ macro_rules! map_ffi_impl {
     };
 }
 
+macro_rules! generic_info_impl {
+    ($trait: ident, $id_type: ty, $type: ident, $result: ty, $id: expr, $id_name: expr) => {
+        #[doc="Marker type mapping to `"] #[doc=$id_name] #[doc="`."]
+        pub struct $type;
+
+        impl Information<$id_type> for $type {
+            type Result = $result;
+
+            fn id() -> $id_type {
+                $id
+            }
+        }
+
+        impl $trait for $type { }
+    };
+}
+
 pub mod platform;
 pub mod device;
+pub mod context;

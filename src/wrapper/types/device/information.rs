@@ -1,29 +1,14 @@
 //! A module containing the information marker types for `Device`.
 
 use wrapper::ffi;
-use wrapper::information::InformationResult;
+use wrapper::information::*;
 
 /// A trait implemented by marker types for retrieving information through `clGetDeviceInfo`.
-pub trait DeviceInformation {
-    /// Type of the information result.
-    type Result: InformationResult<usize>;
-
-    /// OpenCL constant for identifying the piece of information, e.g. `CL_DEVICE_ADDRESS_BITS`.
-    fn id() -> ffi::cl_device_info;
-}
+pub trait DeviceInformation: Information<ffi::cl_device_info> { }
 
 macro_rules! info_impl {
     ($type: ident, $result: ty, $id: expr, $id_name: expr, $test_fun: ident) => {
-        #[doc="Marker type mapping to `"] #[doc=$id_name] #[doc="`."]
-        pub struct $type;
-
-        impl DeviceInformation for $type {
-            type Result = $result;
-
-            fn id() -> ffi::cl_device_info {
-                $id
-            }
-        }
+        generic_info_impl!(DeviceInformation, ffi::cl_device_info, $type, $result, $id, $id_name);
 
         #[test]
         fn $test_fun() {
@@ -88,9 +73,9 @@ info_impl!(NativeVectorWidthHalf, ffi::cl_uint, ffi::CL_DEVICE_NATIVE_VECTOR_WID
 info_impl!(OpenClCVersion, String, ffi::CL_DEVICE_OPENCL_C_VERSION, "CL_DEVICE_OPENCL_C_VERSION", test_opencl_c_version);
 info_impl!(ParentDevice, super::ParentDevice, ffi::CL_DEVICE_PARENT_DEVICE, "CL_DEVICE_PARENT_DEVICE", test_parent_device);
 info_impl!(PartitionMaxSubDevices, ffi::cl_uint, ffi::CL_DEVICE_PARTITION_MAX_SUB_DEVICES, "CL_DEVICE_PARTITION_MAX_SUB_DEVICES", test_partition_max_sub_devices);
-info_impl!(PartitionProperties, Vec<super::PartitionProperty>, ffi::CL_DEVICE_PARTITION_PROPERTIES, "CL_DEVICE_PARTITION_PROPERTIES", test_partition_properties);
+info_impl!(PartitionProperties, super::PartitionProperties, ffi::CL_DEVICE_PARTITION_PROPERTIES, "CL_DEVICE_PARTITION_PROPERTIES", test_partition_properties);
 info_impl!(PartitionAffinityDomain, super::AffinityDomain, ffi::CL_DEVICE_PARTITION_AFFINITY_DOMAIN, "CL_DEVICE_PARTITION_AFFINITY_DOMAIN", test_partition_affinity_domain);
-info_impl!(PartitionType, Vec<super::PartitionProperty>, ffi::CL_DEVICE_PARTITION_TYPE, "CL_DEVICE_PARTITION_TYPE", test_partition_type);
+info_impl!(PartitionType, Option<super::PartitionType>, ffi::CL_DEVICE_PARTITION_TYPE, "CL_DEVICE_PARTITION_TYPE", test_partition_type);
 info_impl!(Platform, ::wrapper::types::platform::Platform, ffi::CL_DEVICE_PLATFORM, "CL_DEVICE_PLATFORM", test_platform);
 info_impl!(PreferredVectorWidthChar, ffi::cl_uint, ffi::CL_DEVICE_PREFERRED_VECTOR_WIDTH_CHAR, "CL_DEVICE_PREFERRED_VECTOR_WIDTH_CHAR", test_preferred_vector_width_char);
 info_impl!(PreferredVectorWidthShort, ffi::cl_uint, ffi::CL_DEVICE_PREFERRED_VECTOR_WIDTH_SHORT, "CL_DEVICE_PREFERRED_VECTOR_WIDTH_SHORT", test_preferred_vector_width_short);

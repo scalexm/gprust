@@ -181,12 +181,12 @@ pub const CL_EXEC_NATIVE_KERNEL: cl_device_exec_capabilities = 2;
 pub const CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE: cl_command_queue_properties = 1;
 pub const CL_QUEUE_PROFILING_ENABLE: cl_command_queue_properties = 2;
 
-pub const CL_CONTEXT_REFERENCE_COUNT: cl_int = 4224;
-pub const CL_CONTEXT_DEVICES: cl_int = 4225;
-pub const CL_CONTEXT_PROPERTIES: cl_int = 4226;
-pub const CL_CONTEXT_NUM_DEVICES: cl_int = 4227;
-pub const CL_CONTEXT_PLATFORM: cl_int = 4228;
-pub const CL_CONTEXT_INTEROP_USER_SYNC: cl_int = 4229;
+pub const CL_CONTEXT_REFERENCE_COUNT: cl_context_info = 4224;
+pub const CL_CONTEXT_DEVICES: cl_context_info = 4225;
+pub const CL_CONTEXT_PROPERTIES: cl_context_info = 4226;
+pub const CL_CONTEXT_NUM_DEVICES: cl_context_info = 4227;
+pub const CL_CONTEXT_PLATFORM: cl_context_properties = 4228;
+pub const CL_CONTEXT_INTEROP_USER_SYNC: cl_context_properties = 4229;
 
 pub const CL_DEVICE_PARTITION_EQUALLY: cl_device_partition_property = 4230;
 pub const CL_DEVICE_PARTITION_BY_COUNTS: cl_device_partition_property = 4231;
