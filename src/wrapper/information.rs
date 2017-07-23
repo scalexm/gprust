@@ -10,7 +10,7 @@ use std::{mem, ptr};
 ///
 /// The `SizeType` parameter is there for vectors in order to differentiate between OpenCL
 /// functions asking for the full size of the allocated vector (i.e. `N * size_of::<T>()` where
-/// `N` is the len of a `Vec<T>`) and functions asking for the elements count (i.e. just `N).
+/// `N` is the len of a `Vec<T>`) and functions asking for the elements count (i.e. just `N`).
 /// Functions asking for the full size will use `usize` while functions asking for the elements
 /// count will use `cl_uint == u32`.
 ///
@@ -39,8 +39,8 @@ pub trait InformationResult<SizeType>: Sized {
     /// * first argument should be the size of the allocated data, or zero if the allocated data is null
     /// * second argument should be a pointer to the allocated data, or a null pointer
     /// * third argument should be a mutable pointer to a `SizeType` value
-    ///   which, if non null, will be updated to contain the actual size
-    ///   of the queried data.
+    /// which, if non null, will be updated to contain the actual size
+    /// of the queried data.
     /// * return value should map errors returned by the asbtracted OpenCL function
     ///
     /// # Errors

@@ -65,7 +65,18 @@ impl Platform {
         }
     }
 
-    /// Return the list of available OpenCL platforms.
+    /// Return a list of available OpenCL platforms.
+    ///
+    /// # Examples
+    /// ```
+    /// # extern crate gprust;
+    /// # use gprust::platform::Platform;
+    /// # fn main() {
+    /// for p in Platform::list() {
+    ///     println!("{:?}", p);
+    /// }
+    /// # }
+    /// ```
     ///
     /// # Panics
     /// Panic if the host fails to allocate resources.
@@ -79,6 +90,17 @@ impl Platform {
         expect!(result, ffi::CL_OUT_OF_HOST_MEMORY)
     }
 
+    /// Return a list of extensions supported by the platform.
+    ///
+    /// # Panics
+    /// Same as `get_info`.
+    pub fn extensions(&self) -> Vec<String> {
+        self.get_info::<information::Extensions>()
+            .split_whitespace()
+            .map(|s| s.to_owned())
+            .collect()
+    }
+
     /// Query an information to the platform. `T` should be a marker type from the `information`
     /// module.
     ///
@@ -86,7 +108,6 @@ impl Platform {
     /// ```
     /// # extern crate gprust;
     /// # use gprust::{platform, Platform};
-    ///
     /// # fn main() {
     /// # let platform = Platform::list().pop().unwrap();
     /// // `platform` is an object of type `Platform`.
@@ -124,7 +145,6 @@ impl Platform {
     /// ```
     /// # extern crate gprust;
     /// # use gprust::{device, Platform};
-    ///
     /// # fn main() {
     /// # let platform = Platform::list().pop().unwrap();
     /// // Query all devices.
@@ -135,7 +155,6 @@ impl Platform {
     /// ```
     /// # extern crate gprust;
     /// # use gprust::{device, Platform};
-    ///
     /// # fn main() {
     /// # let platform = Platform::list().pop().unwrap();
     /// // Query only devices which type is `CL_DEVICE_TYPE_GPU` or `CL_DEVICE_TYPE_ACCELERATOR`.

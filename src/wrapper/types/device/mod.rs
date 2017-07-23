@@ -6,6 +6,7 @@ use wrapper::ffi;
 use wrapper::information::*;
 use errors::*;
 use std::fmt;
+use std::iter::IntoIterator;
 
 bitfield_builder!(
     [Type, TypeBuilder, "Type"],
@@ -35,11 +36,12 @@ bitfield!(
     [round_to_zero, "round_to_zero"] => ffi::CL_FP_ROUND_TO_ZERO,
     [round_to_inf, "round_to_inf"] => ffi::CL_FP_ROUND_TO_INF,
     [fma, "fma"] => ffi::CL_FP_FMA,
-    [soft_float, "soft_float"] => ffi::CL_FP_SOFT_FLOAT
+    [soft_float, "soft_float"] => ffi::CL_FP_SOFT_FLOAT,
+    [correctly_rounded_divide_sqrt, "correctly_rounded_divide_sqrt"] => ffi::CL_FP_CORRECTLY_ROUNDED_DIVIDE_SQRT
 );
 
-bitfield!(
-    PartitionAffinityDomain,
+bitfield_builder!(
+    [AffinityDomain, AffinityDomainBuilder, "AffinityDomain"],
     "cl_device_affinity_domain",
     [numa, "numa"] => ffi::CL_DEVICE_AFFINITY_DOMAIN_NUMA,
     [l4_cache, "l4_cache"] => ffi::CL_DEVICE_AFFINITY_DOMAIN_L4_CACHE,
@@ -135,6 +137,28 @@ impl InformationResult<usize> for ParentDevice {
     }
 }
 
+mod partition_error {
+    error_chain! {
+        types {
+            PartitionError, PartitionErrorKind, ResultExt, Result;
+        }
+
+        errors {
+            /// The device does not support this partition type.
+            NotSupported {
+                description("partition not supported")
+            }
+
+            /// The device could not be further partitioned.
+            Failed {
+                description("partition failed")
+            }
+        }
+    }
+}
+
+pub use self::partition_error::{PartitionError, PartitionErrorKind};
+
 impl Device {
     fn from_ffi(device_id: ffi::cl_device_id) -> Self {
         Device {
@@ -142,16 +166,223 @@ impl Device {
         }
     }
 
+    unsafe fn partition_unchecked(&self, partition: &[isize]) -> Result<Vec<Device>> {
+        use std::ptr;
+
+        // We retrieve the number of sub devices that this partition will create.
+        let mut num_devices = 0;
+        catch_ffi(
+            ffi::clCreateSubDevices(
+                self.device_id,
+                partition.as_ptr(),
+                0,
+                ptr::null_mut(),
+                &mut num_devices
+            )
+        )?;
+
+        let mut devices = vec![ptr::null_mut(); num_devices as usize];
+        catch_ffi(
+            ffi::clCreateSubDevices(
+                self.device_id,
+                partition.as_ptr(),
+                num_devices,
+                devices.as_mut_ptr(),
+                ptr::null_mut()
+            )
+        )?;
+
+       Ok(devices.into_iter().map(Device::from_ffi).collect())
+    }
+
+    unsafe fn partition(&self, partition: &[isize])
+        -> partition_error::Result<Vec<Device>>
+    {
+        let result = self.partition_unchecked(partition);
+
+        // Here, some of the OpenCL function calls has returned an error. Since we checked
+        // beforehand wether the partition was supported, the only possible error is
+        // `CL_DEVICE_PARTITION_FAILED`.
+        if let &Err(Error(ErrorKind::RawError(ffi::CL_DEVICE_PARTITION_FAILED), _)) = &result {
+            return Err(PartitionErrorKind::Failed.into());
+        }
+
+        Ok(expect!(result, ffi::CL_OUT_OF_RESOURCES, ffi::CL_OUT_OF_HOST_MEMORY))
+    }
+
+    /// Partition the device into equal sub devices with `n` compute units.
+    ///
+    /// # Examples
+    /// ```
+    /// # extern crate gprust;
+    /// # use gprust::{Platform, device};
+    /// # fn main() {
+    /// # let device = Platform::list().pop().unwrap().get_devices(device::ALL).pop().unwrap();
+    /// // `device` is an object of type `Device`.
+    /// if let Ok(sub_devices) = device.partition_equally(2) {
+    ///     // Each sub device in `sub_devices` has 2 compute units.
+    ///     for sub in sub_devices {
+    ///         assert!(
+    ///             device::ParentDevice::Device(device.clone())
+    ///             ==
+    ///             sub.get_info::<device::information::ParentDevice>()
+    ///         );
+    ///     }
+    /// }
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    /// * `PartitionErrorKind::NotSupported` if `PartitionProperty::PartitionEqually` is not
+    /// supported.
+    /// * `PartitionErrorKind::Failed` if the partition failed.
+    ///
+    /// # Panics
+    /// Same as `get_info`.
+    pub fn partition_equally(&self, n: isize) -> partition_error::Result<Vec<Device>> {
+        if !self.get_info::<information::PartitionProperties>()
+                .contains(&PartitionProperty::PartitionEqually)
+        {
+            return Err(PartitionErrorKind::NotSupported.into());
+        }
+
+        let partition = [ffi::CL_DEVICE_PARTITION_EQUALLY, n, 0];
+        unsafe {
+            self.partition(&partition)
+        }
+    }
+
+    /// For each non-zero count `m` in `counts`, create a sub-device with `m` compute units.
+    ///
+    /// # Examples
+    /// ```
+    /// # extern crate gprust;
+    /// # use gprust::{Platform, device};
+    /// # fn main() {
+    /// # let device = Platform::list().pop().unwrap().get_devices(device::ALL).pop().unwrap();
+    /// // `device` is an object of type `Device`.
+    /// if let Ok(sub_devices) = device.partition_by_counts(vec![3, 1]) {
+    ///     // Two sub devices were created, namely containing 3 and 1 compute units.
+    ///     for sub in sub_devices {
+    ///         assert!(
+    ///             device::ParentDevice::Device(device.clone())
+    ///             ==
+    ///             sub.get_info::<device::information::ParentDevice>()
+    ///         );
+    ///     }
+    /// }
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    /// * `PartitionErrorKind::NotSupported` if `PartitionProperty::PartitionEqually` is not
+    /// supported.
+    /// * `PartitionErrorKind::Failed` if the partition failed (typically because the number of
+    /// non-zero entries in `counts` exceeded `self.get_info::<information::PartitionMaxSubDevices>()`).
+    ///
+    /// # Panics
+    /// Same as `get_info`.
+    pub fn partition_by_counts<I: IntoIterator<Item = isize>>(&self, counts: I)
+        -> partition_error::Result<Vec<Device>>
+    {
+        if !self.get_info::<information::PartitionProperties>()
+                .contains(&PartitionProperty::PartitionEqually)
+        {
+            return Err(PartitionErrorKind::NotSupported.into());
+        }
+
+        let mut partition = vec![ffi::CL_DEVICE_PARTITION_BY_COUNTS];
+        partition.extend(counts);
+        partition.push(ffi::CL_DEVICE_PARTITION_BY_COUNTS_LIST_END);
+        partition.push(0);
+        unsafe {
+            self.partition(&partition)
+        }
+    }
+
+    /// Split the device into smaller aggregate devices containing one or more compute units that
+    /// all share part of a cache hierarchy (ref: OpenCL specification).
+    ///
+    /// # Examples
+    /// ```
+    /// # extern crate gprust;
+    /// # use gprust::{Platform, device};
+    /// # fn main() {
+    /// # let device = Platform::list().pop().unwrap().get_devices(device::ALL).pop().unwrap();
+    /// // `device` is an object of type `Device`.
+    /// if let Ok(sub_devices) = device.partition_by_affinity_domain(
+    ///     device::AffinityDomainBuilder::new().next_partitionable().finish()
+    /// )
+    /// {
+    ///     // The device was split along the outermost cache line.
+    ///     for sub in sub_devices {
+    ///         assert!(
+    ///             device::ParentDevice::Device(device.clone())
+    ///             ==
+    ///             sub.get_info::<device::information::ParentDevice>()
+    ///         );
+    ///     }
+    /// }
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    /// * `PartitionErrorKind::NotSupported` if `PartitionProperty::PartitionEqually` is not
+    /// supported.
+    /// * `PartitionErrorKind::Failed` if the partition failed.
+    ///
+    /// # Panics
+    /// Same as `get_info`.
+    pub fn partition_by_affinity_domain(&self, affinity: AffinityDomain)
+        -> partition_error::Result<Vec<Device>>
+    {
+        if !self.get_info::<information::PartitionProperties>()
+                .contains(&PartitionProperty::PartitionByAffinityDomain)
+        {
+            return Err(PartitionErrorKind::NotSupported.into());
+        }
+
+        let partition = [
+            ffi::CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
+            affinity.bitfield as isize,
+            0
+        ];
+        unsafe {
+            self.partition(&partition)
+        }
+    }
+
     /// Return `true` if the device is a sub device.
     ///
     /// # Panics
-    /// Same as `get_info`, but `CL_INVALID_VALUE` should never be triggered if the device
-    /// correctly support OpenCL 1.2.
+    /// Same as `get_info`.
     pub fn is_subdevice(&self) -> bool {
         match self.get_info::<information::ParentDevice>() {
             ParentDevice::Device(_) => true,
             ParentDevice::None => false,
         }
+    }
+
+    /// Return a list of built-in kernels supported by the device.
+    ///
+    /// # Panics
+    /// Same as `get_info`.
+    pub fn builtin_kernels(&self) -> Vec<String> {
+        self.get_info::<information::BuiltinKernels>()
+            .split(';')
+            .map(|s| s.to_owned())
+            .collect()
+    }
+
+    /// Return a list of extensions supported by the device.
+    ///
+    /// # Panics
+    /// Same as `get_info`.
+    pub fn extensions(&self) -> Vec<String> {
+        self.get_info::<information::Extensions>()
+            .split_whitespace()
+            .map(|s| s.to_owned())
+            .collect()
     }
 
     /// Query an information to the device. `T` should be a marker type from the `information`
@@ -161,7 +392,6 @@ impl Device {
     /// ```
     /// # extern crate gprust;
     /// # use gprust::{Platform, device};
-    ///
     /// # fn main() {
     /// # let device = Platform::list().pop().unwrap().get_devices(device::ALL).pop().unwrap();
     /// // `device` is an object of type `Device`.

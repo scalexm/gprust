@@ -89,7 +89,7 @@ info_impl!(OpenClCVersion, String, ffi::CL_DEVICE_OPENCL_C_VERSION, "CL_DEVICE_O
 info_impl!(ParentDevice, super::ParentDevice, ffi::CL_DEVICE_PARENT_DEVICE, "CL_DEVICE_PARENT_DEVICE", test_parent_device);
 info_impl!(PartitionMaxSubDevices, ffi::cl_uint, ffi::CL_DEVICE_PARTITION_MAX_SUB_DEVICES, "CL_DEVICE_PARTITION_MAX_SUB_DEVICES", test_partition_max_sub_devices);
 info_impl!(PartitionProperties, Vec<super::PartitionProperty>, ffi::CL_DEVICE_PARTITION_PROPERTIES, "CL_DEVICE_PARTITION_PROPERTIES", test_partition_properties);
-info_impl!(PartitionAffinityDomain, super::PartitionAffinityDomain, ffi::CL_DEVICE_PARTITION_AFFINITY_DOMAIN, "CL_DEVICE_PARTITION_AFFINITY_DOMAIN", test_partition_affinity_domain);
+info_impl!(PartitionAffinityDomain, super::AffinityDomain, ffi::CL_DEVICE_PARTITION_AFFINITY_DOMAIN, "CL_DEVICE_PARTITION_AFFINITY_DOMAIN", test_partition_affinity_domain);
 info_impl!(PartitionType, Vec<super::PartitionProperty>, ffi::CL_DEVICE_PARTITION_TYPE, "CL_DEVICE_PARTITION_TYPE", test_partition_type);
 info_impl!(Platform, ::wrapper::types::platform::Platform, ffi::CL_DEVICE_PLATFORM, "CL_DEVICE_PLATFORM", test_platform);
 info_impl!(PreferredVectorWidthChar, ffi::cl_uint, ffi::CL_DEVICE_PREFERRED_VECTOR_WIDTH_CHAR, "CL_DEVICE_PREFERRED_VECTOR_WIDTH_CHAR", test_preferred_vector_width_char);
