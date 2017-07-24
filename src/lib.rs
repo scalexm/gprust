@@ -10,3 +10,4 @@ mod errors;
 pub use errors::{Error, ErrorKind, ResultExt, Result};
 pub use wrapper::types::platform::{self, Platform};
 pub use wrapper::types::device::{self, Device};
+pub use wrapper::types::context::{self, Context};

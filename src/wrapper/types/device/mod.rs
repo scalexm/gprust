@@ -84,6 +84,7 @@ enumz!(
 );
 
 /// Enum indicating the partition type for partitioning a device into sub-devices.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PartitionType {
     /// Partition the device into equal sub-devices with `n` compute units.
     Equally(isize),
@@ -99,7 +100,7 @@ pub enum PartitionType {
 }
 
 impl PartitionType {
-    fn to_ffi(self) -> Vec<isize> {
+    fn to_ffi(self) -> Vec<ffi::cl_device_partition_property> {
         let mut partition = vec![];
         match self {
             PartitionType::Equally(n) => partition.extend(&[ffi::CL_DEVICE_PARTITION_EQUALLY, n]),
@@ -111,7 +112,7 @@ impl PartitionType {
             PartitionType::ByAffinityDomain(affinity) => {
                 partition.extend(&[
                     ffi::CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN,
-                    affinity.bitfield as isize
+                    affinity.bitfield as _
                 ]);
             }
         }
@@ -156,7 +157,7 @@ impl InformationResult<usize> for Option<PartitionType> {
             ffi::CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN => {
                 Some(
                     PartitionType::ByAffinityDomain(AffinityDomain {
-                        bitfield: properties[1] as ffi::cl_device_affinity_domain
+                        bitfield: properties[1] as _,
                     })
                 )
             }
@@ -166,6 +167,7 @@ impl InformationResult<usize> for Option<PartitionType> {
 }
 
 /// Type indicating which partitions are supported on a device.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PartitionProperties {
     equally: bool,
     by_counts: bool,
@@ -277,10 +279,17 @@ mod partition_error {
 pub use self::partition_error::{PartitionError, PartitionErrorKind};
 
 impl Device {
+    // Not marked as unsafe for convenience, but should respect the invariant that `device_id`
+    // refer to a valid device.
     fn from_ffi(device_id: ffi::cl_device_id) -> Self {
         Device {
             device_id,
         }
+    }
+
+    // Unsafe because one should be *VERY* careful with dropping and reference counting.
+    pub(super) unsafe fn underlying(&self) -> ffi::cl_device_id {
+        self.device_id
     }
 
     unsafe fn partition_unchecked(&self, partition: &[isize]) -> Result<Vec<Device>> {
@@ -321,8 +330,8 @@ impl Device {
     /// # fn main() {
     /// # let device = Platform::list().pop().unwrap().get_devices(device::ALL).pop().unwrap();
     /// // `device` is an object of type `Device`.
-    /// if let Ok(sub_devices) = device.partition(device::PartitionType::Equally(2)) {
-    ///     // Each sub-device in `sub_devices` has 2 compute units.
+    /// if let Ok(sub_devices) = device.partition(device::PartitionType::Equally(8)) {
+    ///     // Each sub-device in `sub_devices` has 8 compute units.
     ///     for sub in sub_devices {
     ///         assert!(
     ///             device::ParentDevice::Device(device.clone())
@@ -439,15 +448,13 @@ impl Device {
     /// `DeviceInformation` on their own or if the information is not supported on the device
     /// and cargo features have not been set correctly, otherwise it is a bug).
     pub fn get_info<T: information::DeviceInformation>(&self) -> T::Result {
-        use std::os::raw::c_void;
-
         let result = unsafe {
             InformationResult::ask_info(|size, value, ret_size| {
                 ffi::clGetDeviceInfo(
                     self.device_id,
                     T::id(),
                     size,
-                    value as *mut c_void,
+                    value as _,
                     ret_size
                 )
             })
@@ -499,12 +506,29 @@ fn test_relation_to_platform() {
     
     for p in Platform::list() {
         for d in p.get_devices(ALL) {
-            assert!(
-                p.get_info::<platform::information::Name>()
-                ==
+            assert_eq!(
+                p.get_info::<platform::information::Name>(),
                 d.get_info::<information::Platform>()
                  .get_info::<platform::information::Name>()
             )
+        }
+    }
+}
+
+#[test]
+fn test_relation_to_sub_device_partition_type() {
+    use wrapper::types::platform::Platform;
+
+    for p in Platform::list() {
+        for d in p.get_devices(ALL) {
+            if let Ok(sub_devices) = d.partition(PartitionType::Equally(8)) {
+                for sub in sub_devices {
+                    assert_eq!(
+                        sub.get_info::<information::PartitionType>(),
+                        Some(PartitionType::Equally(8))
+                    )
+                }
+            }
         }
     }
 }

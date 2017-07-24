@@ -40,14 +40,20 @@ pub mod information {
 /// platform is a shallow copy.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Platform {
-    pub(super) platform_id: ffi::cl_platform_id,
+    platform_id: ffi::cl_platform_id,
 }
 
 impl Platform {
-    fn from_ffi(platform_id: ffi::cl_platform_id) -> Self {
+    // Not marked as unsafe for convenience, but should respect the invariant that `platform_id`
+    // refer to a valid platform.
+    pub(super) fn from_ffi(platform_id: ffi::cl_platform_id) -> Self {
         Platform {
             platform_id,
         }
+    }
+
+    pub(super) fn underlying(self) -> ffi::cl_platform_id {
+        self.platform_id
     }
 
     /// Return a list of available OpenCL platforms.
@@ -106,15 +112,13 @@ impl Platform {
     /// their own or if the information is not supported on the device and cargo features have not
     /// been set correctly, otherwise it is a bug).
     pub fn get_info<T: information::PlatformInformation>(&self) -> T::Result {
-        use std::os::raw::c_void;
-
         let result = unsafe {
             InformationResult::ask_info(|size, value, ret_size| {
                 ffi::clGetPlatformInfo(
                     self.platform_id,
                     T::id(),
                     size,
-                    value as *mut c_void,
+                    value as _,
                     ret_size
                 )
             })

@@ -185,6 +185,7 @@ pub const CL_CONTEXT_REFERENCE_COUNT: cl_context_info = 4224;
 pub const CL_CONTEXT_DEVICES: cl_context_info = 4225;
 pub const CL_CONTEXT_PROPERTIES: cl_context_info = 4226;
 pub const CL_CONTEXT_NUM_DEVICES: cl_context_info = 4227;
+
 pub const CL_CONTEXT_PLATFORM: cl_context_properties = 4228;
 pub const CL_CONTEXT_INTEROP_USER_SYNC: cl_context_properties = 4229;
 
