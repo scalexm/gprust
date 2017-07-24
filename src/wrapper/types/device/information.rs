@@ -2,6 +2,7 @@
 
 use wrapper::ffi;
 use wrapper::information::*;
+use wrapper::types::command_queue;
 
 /// A trait implemented by marker types for retrieving information through `clGetDeviceInfo`.
 pub trait DeviceInformation: Information<ffi::cl_device_info> { }
@@ -88,7 +89,7 @@ info_impl!(PrintfBufferSize, usize, ffi::CL_DEVICE_PRINTF_BUFFER_SIZE, "CL_DEVIC
 info_impl!(PreferredInteropUserSync, bool, ffi::CL_DEVICE_PREFERRED_INTEROP_USER_SYNC, "CL_DEVICE_PREFERRED_INTEROP_USER_SYNC", test_preferred_interop_user_sync);
 info_impl!(Profile, String, ffi::CL_DEVICE_PROFILE, "CL_DEVICE_PROFILE", test_profile);
 info_impl!(ProfilingTimerResolution, usize, ffi::CL_DEVICE_PROFILING_TIMER_RESOLUTION, "CL_DEVICE_PROFILING_TIMER_RESOLUTION", test_profiling_timer_resolution);
-info_impl!(QueueProperties, super::QueueProperties, ffi::CL_DEVICE_QUEUE_PROPERTIES, "CL_DEVICE_QUEUE_PROPERTIES", test_queue_properties);
+info_impl!(QueueProperties, command_queue::Properties, ffi::CL_DEVICE_QUEUE_PROPERTIES, "CL_DEVICE_QUEUE_PROPERTIES", test_queue_properties);
 info_impl!(ReferenceCount, ffi::cl_uint, ffi::CL_DEVICE_REFERENCE_COUNT, "CL_DEVICE_REFERENCE_COUNT", test_reference_count);
 info_impl!(SingleFpConfig, super::FpConfig, ffi::CL_DEVICE_SINGLE_FP_CONFIG, "CL_DEVICE_SINGLE_FP_CONFIG", test_single_fp_config);
 info_impl!(Type, super::Type, ffi::CL_DEVICE_TYPE, "CL_DEVICE_TYPE", test_type);

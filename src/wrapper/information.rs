@@ -148,7 +148,10 @@ macro_rules! result_impl {
             unsafe fn ask_info<F>(function: F) -> Result<Self>
                 where F: Fn(usize, *mut Self::Item, *mut usize) -> ffi::cl_int
             {
+                // Do not modify this `0` default value: see comment in
+                // `impl InformationResult<usize> for device::ParentDevice`.
                 let mut raw = 0 as $type;
+
                 catch_ffi(function(mem::size_of::<$type>(), &mut raw, ptr::null_mut()))?;
                 Ok(raw)
             }
@@ -165,6 +168,7 @@ result_impl!(usize);
 result_impl!(isize);
 result_impl!(ffi::cl_platform_id);
 result_impl!(ffi::cl_device_id);
+result_impl!(ffi::cl_context);
 
 /// A trait describing a piece of information.
 pub trait Information<T> {

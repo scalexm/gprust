@@ -58,13 +58,6 @@ bitfield!(
     [native_kernel, "native_kernel"] => ffi::CL_EXEC_NATIVE_KERNEL
 );
 
-bitfield!(
-    QueueProperties,
-    "cl_command_queue_properties",
-    [out_of_order_exec_mode_enable, "out_of_order_exec_mode_enable"] => ffi::CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE,
-    [profiling_enable, "profiling_enable"] => ffi::CL_QUEUE_PROFILING_ENABLE
-);
-
 enumz!(
     GlobalMemCacheType,
     ffi::cl_device_mem_cache_type,
@@ -246,7 +239,7 @@ impl InformationResult<usize> for ParentDevice {
         if device_id == ptr::null_mut() {
             Ok(ParentDevice::None)
         } else {
-            Ok(ParentDevice::Device(Device::from_ffi(device_id)))
+            Ok(ParentDevice::Device(Device::from_ffi(device_id, true)))
         }
     }
 }
@@ -279,9 +272,11 @@ mod partition_error {
 pub use self::partition_error::{PartitionError, PartitionErrorKind};
 
 impl Device {
-    // Not marked as unsafe for convenience, but should respect the invariant that `device_id`
-    // refer to a valid device.
-    fn from_ffi(device_id: ffi::cl_device_id) -> Self {
+    unsafe fn from_ffi(device_id: ffi::cl_device_id, retain: bool) -> Self {
+        if retain {
+            catch_ffi(ffi::clRetainDevice(device_id)).unwrap();
+        }
+
         Device {
             device_id,
         }
@@ -344,7 +339,8 @@ impl Device {
             )
         )?;
 
-       Ok(devices.into_iter().map(Device::from_ffi).collect())
+        // Do not retain the sub-devices since this is already done by `clCreateSubDevices`.
+        Ok(devices.into_iter().map(|d| Device::from_ffi(d, false)).collect())
     }
 
     /// Partition the device according to `partition`.
@@ -502,9 +498,7 @@ map_ffi_impl!(Device, ffi::cl_device_id);
 
 impl Clone for Device {
     fn clone(&self) -> Self {
-        if self.is_subdevice() {
-            catch_ffi(unsafe { ffi::clRetainDevice(self.device_id) }).unwrap()
-        }
+        catch_ffi(unsafe { ffi::clRetainDevice(self.device_id) }).unwrap();
 
         Device {
             device_id: self.device_id,
@@ -514,9 +508,7 @@ impl Clone for Device {
 
 impl Drop for Device {
     fn drop(&mut self) {
-        if self.is_subdevice() {
-            catch_ffi(unsafe { ffi::clReleaseDevice(self.device_id) }).unwrap()
-        }
+        catch_ffi(unsafe { ffi::clReleaseDevice(self.device_id) }).unwrap();
     }
 }
 

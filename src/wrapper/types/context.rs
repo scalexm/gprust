@@ -6,6 +6,7 @@ use wrapper::types::platform::Platform;
 use wrapper::types::device::Device;
 use errors::*;
 use std::iter::IntoIterator;
+use std::fmt;
 
 pub mod information {
     //! A module containing the information marker types for `Context`.
@@ -23,16 +24,8 @@ pub mod information {
 
             #[test]
             fn $test_fun() {
-                use wrapper::types::platform::Platform;
-                use wrapper::types::device;
-                use wrapper::types::context::{self, Context};
-
-                for p in Platform::list() {
-                    for d in p.get_devices(device::TypeBuilder::new().cpu().gpu().finish()) {
-                        let context = Context::create(context::Properties::new(), vec![d]).unwrap();
-                        let _ = context.get_info::<$type>();
-                    }
-                }
+                let context = super::Context::default().unwrap();
+                let _ = context.get_info::<$type>();
             }
         };
     }
@@ -120,7 +113,7 @@ impl InformationResult<usize> for Properties {
         while let Some(property) = iter.next() {
             if property == ffi::CL_CONTEXT_PLATFORM {
                 hl_properties = hl_properties.set_platform(
-                    Platform::from_ffi(iter.next().unwrap() as _)
+                    Platform::from_ffi(iter.next().unwrap() as _, false)
                 );
             } else if property == ffi::CL_CONTEXT_INTEROP_USER_SYNC {
                 if iter.next().unwrap() != 0 {
@@ -149,19 +142,19 @@ mod creation_error {
         }
 
         errors {
-            /// If no device was provided.
+            /// No device was provided.
             NoDevice {
                 description("no device was provided")
             }
 
-            /// If the `CL_CONTEXT_INTEROP_USER_SYNC` property is not supported, typically for
+            /// The `CL_CONTEXT_INTEROP_USER_SYNC` property is not supported, typically for
             /// devices which support an OpenCL / OpenGL sharing extension
             /// (cf https://www.khronos.org/registry/OpenCL/specs/opencl-1.2-extensions.pdf, p43).
             InteropUserSyncNotSupported {
                 description("CL_CONTEXT_INTEROP_USER_SYNC property is not supported")
             }
 
-            /// If no platform was specified, and a platform could not be selected automatically.
+            /// No platform was specified, and a platform could not be selected automatically.
             CannotSelectPlatform {
                 description("could not select a platform")
             }
@@ -178,6 +171,20 @@ mod creation_error {
 pub use self::creation_error::{CreationError, CreationErrorKind};
 
 impl Context {
+    unsafe fn from_ffi(context: ffi::cl_context, retain: bool) -> Self {
+        if retain {
+            catch_ffi(ffi::clRetainContext(context)).unwrap();
+        }
+
+        Context {
+            context,
+        }
+    }
+
+    pub(super) unsafe fn underlying(&self) -> ffi::cl_context {
+        self.context
+    }
+
     /// Create a context with one or more devices.
     ///
     /// # Examples
@@ -190,7 +197,7 @@ impl Context {
     /// let devices = platform.get_devices(device::TypeBuilder::new().gpu().finish());
     ///
     /// // Create a context with all gpu devices available.
-    /// if let Ok(context) = Context::create(context::Properties::new(), devices) {
+    /// if let Ok(context) = Context::create(devices, context::Properties::new()) {
     ///     /* work with `context` */
     /// }
     /// # }
@@ -208,7 +215,7 @@ impl Context {
     ///
     /// # Panics
     /// Panic if the host or a device fails to allocate resources.
-    pub fn create<I: IntoIterator<Item = Device>>(properties: Properties, devices: I)
+    pub fn create<I: IntoIterator<Item = Device>>(devices: I, properties: Properties)
         -> creation_error::Result<Self>
     {
         use std::ptr;
@@ -269,7 +276,7 @@ impl Context {
     pub fn default() -> Option<Context> {
         use wrapper::types::device::Device;
 
-        Device::default().and_then(|d| Context::create(Properties::new(), vec![d]).ok())
+        Device::default().and_then(|d| Context::create(vec![d], Properties::new()).ok())
     }
 
     /// Query an information to the context. `T` should be a marker type from the `information`
@@ -314,6 +321,8 @@ impl Context {
     }
 }
 
+map_ffi_impl!(Context, ffi::cl_context);
+
 impl Clone for Context {
     fn clone(&self) -> Self {
         catch_ffi(unsafe { ffi::clRetainContext(self.context) }).unwrap();
@@ -330,19 +339,34 @@ impl Drop for Context {
     }
 }
 
+impl fmt::Debug for Context {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use wrapper::types::device;
+
+        f.debug_struct("Context")
+         .field(
+             "devices",
+             &self.get_info::<information::Devices>()
+                  .iter()
+                  .map(|d| d.get_info::<device::information::Name>())
+                  .collect::<Vec<_>>()
+         )
+         .finish()
+    }
+}
+
 #[test]
 fn test_relation_to_devices() {
     use wrapper::types::platform::Platform;
     use wrapper::types::device;
 
-    for p in Platform::list() {
-        let devices = p.get_devices(device::TypeBuilder::new().cpu().gpu().finish());
-        let context = Context::create(Properties::new(), devices.clone()).unwrap();
-        assert_eq!(
-            devices.len(),
-            context.get_info::<information::NumDevices>() as usize
-        );
-    }
+    let platform = Platform::default().unwrap();
+    let devices = platform.get_devices(device::TypeBuilder::new().cpu().gpu().finish());
+    let context = Context::create(devices.clone(), Properties::new()).unwrap();
+    assert_eq!(
+        devices.len(),
+        context.get_info::<information::NumDevices>() as usize
+    );
 }
 
 #[test]
@@ -350,20 +374,19 @@ fn test_relation_to_properties() {
     use wrapper::types::platform::Platform;
     use wrapper::types::device;
 
-    for p in Platform::list() {
-        for d in p.get_devices(device::TypeBuilder::new().cpu().gpu().finish()) {
-            let context = Context::create(Properties::new(), vec![d.clone()]).unwrap();
-            assert_eq!(
-                Properties::new(),
-                context.get_info::<information::Properties>()
-            );
+    let platform = Platform::default().unwrap();
+    for d in platform.get_devices(device::TypeBuilder::new().cpu().gpu().finish()) {
+        let context = Context::create(vec![d.clone()], Properties::new()).unwrap();
+        assert_eq!(
+            Properties::new(),
+            context.get_info::<information::Properties>()
+        );
 
-            let properties = Properties::new().set_platform(p.clone());
-            let context = Context::create(properties.clone(), vec![d]).unwrap();
-            assert_eq!(
-                properties,
-                context.get_info::<information::Properties>()
-            );
-        }
+        let properties = Properties::new().set_platform(platform.clone());
+        let context = Context::create(vec![d], properties.clone()).unwrap();
+        assert_eq!(
+            properties,
+            context.get_info::<information::Properties>()
+        );
     }
 }

@@ -44,9 +44,7 @@ pub struct Platform {
 }
 
 impl Platform {
-    // Not marked as unsafe for convenience, but should respect the invariant that `platform_id`
-    // refer to a valid platform.
-    pub(super) fn from_ffi(platform_id: ffi::cl_platform_id) -> Self {
+    pub(super) unsafe fn from_ffi(platform_id: ffi::cl_platform_id, _: bool) -> Self {
         Platform {
             platform_id,
         }
@@ -167,6 +165,8 @@ impl Platform {
     /// # Panics
     /// Panic if the host or a device fails to allocate resources.
     pub fn get_devices(&self, ty: Type) -> Vec<Device> {
+        // `InformationResult` will retain the devices, but since these are root-devices, this
+        // will have no effect so it's fine.
         let result = unsafe {
             InformationResult::ask_info(|num_entries, devices, num_devices| {
                 ffi::clGetDeviceIDs(

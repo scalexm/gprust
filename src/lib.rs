@@ -11,3 +11,4 @@ pub use errors::{Error, ErrorKind, ResultExt, Result};
 pub use wrapper::types::platform::{self, Platform};
 pub use wrapper::types::device::{self, Device};
 pub use wrapper::types::context::{self, Context};
+pub use wrapper::types::command_queue::{self, CommandQueue};

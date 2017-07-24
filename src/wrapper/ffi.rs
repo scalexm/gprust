@@ -201,10 +201,11 @@ pub const CL_DEVICE_AFFINITY_DOMAIN_L2_CACHE: cl_device_affinity_domain = 8;
 pub const CL_DEVICE_AFFINITY_DOMAIN_L1_CACHE: cl_device_affinity_domain = 16;
 pub const CL_DEVICE_AFFINITY_DOMAIN_NEXT_PARTITIONABLE: cl_device_affinity_domain = 32;
 
-pub const CL_QUEUE_CONTEXT: cl_int = 4240;
-pub const CL_QUEUE_DEVICE: cl_int = 4241;
-pub const CL_QUEUE_REFERENCE_COUNT: cl_int = 4242;
-pub const CL_QUEUE_PROPERTIES: cl_int = 4243;
+pub const CL_QUEUE_CONTEXT: cl_command_queue_info = 4240;
+pub const CL_QUEUE_DEVICE: cl_command_queue_info = 4241;
+pub const CL_QUEUE_REFERENCE_COUNT: cl_command_queue_info = 4242;
+pub const CL_QUEUE_PROPERTIES: cl_command_queue_info = 4243;
+
 pub const CL_MEM_READ_WRITE: cl_int = 1;
 pub const CL_MEM_WRITE_ONLY: cl_int = 2;
 pub const CL_MEM_READ_ONLY: cl_int = 4;

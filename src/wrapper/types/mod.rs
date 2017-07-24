@@ -51,6 +51,15 @@ macro_rules! bitfield_builder {
             bitfield: ::wrapper::ffi::cl_bitfield,
         }
 
+        impl $name {
+            /// Return a zeroed bitfield.
+            pub fn new() -> Self {
+                $name {
+                    bitfield: 0,
+                }
+            }
+        }
+
         impl $builder {
             /// Initialize the builder with a zeroed bitfield.
             pub fn new() -> Self {
@@ -110,34 +119,6 @@ macro_rules! enumz {
                 InformationResult::ask_info(function).map($name::from_ffi)
             }
         }
-
-        impl ::wrapper::information::InformationResult<usize> for Vec<$name> {
-            type Item = $type;
-
-            unsafe fn ask_info<F>(function: F) -> Result<Self>
-                where F: Fn(usize, *mut Self::Item, *mut usize) -> ::wrapper::ffi::cl_int
-            {
-                use wrapper::information::InformationResult;
-                let vec: Result<Vec<_>> = InformationResult::ask_info(function);
-                Ok(vec?.into_iter().filter(|val| *val != 0).map($name::from_ffi).collect())
-            }
-        }
-
-        impl ::wrapper::information::InformationResult<::wrapper::ffi::cl_uint> for Vec<$name> {
-            type Item = $type;
-
-            unsafe fn ask_info<F>(function: F) -> Result<Self>
-                where F: Fn(
-                    ::wrapper::ffi::cl_uint,
-                    *mut Self::Item,
-                    *mut ::wrapper::ffi::cl_uint
-                ) -> ::wrapper::ffi::cl_int
-            {
-                use wrapper::information::InformationResult;
-                let vec: Result<Vec<_>> = InformationResult::ask_info(function);
-                Ok(vec?.into_iter().filter(|val| *val != 0).map($name::from_ffi).collect())
-            }
-        }
     };
 }
 
@@ -152,7 +133,9 @@ macro_rules! map_ffi_impl {
                 where F: Fn(usize, *mut Self::Item, *mut usize) -> ::wrapper::ffi::cl_int
             {
                 use wrapper::information::InformationResult;
-                InformationResult::ask_info(function).map($name::from_ffi)
+
+                // Always retain when using `InformationResult`.
+                InformationResult::ask_info(function).map(|val| $name::from_ffi(val, true))
             }
         }
 
@@ -164,7 +147,7 @@ macro_rules! map_ffi_impl {
             {
                 use wrapper::information::InformationResult;
                 let vec: Result<Vec<_>> = InformationResult::ask_info(function);
-                Ok(vec?.into_iter().map($name::from_ffi).collect())
+                Ok(vec?.into_iter().map(|val| $name::from_ffi(val, true)).collect())
             }
         }
 
@@ -180,7 +163,7 @@ macro_rules! map_ffi_impl {
             {
                 use wrapper::information::InformationResult;
                 let vec: Result<Vec<_>> = InformationResult::ask_info(function);
-                Ok(vec?.into_iter().map($name::from_ffi).collect())
+                Ok(vec?.into_iter().map(|val| $name::from_ffi(val, true)).collect())
             }
         }
     };
@@ -206,3 +189,4 @@ macro_rules! generic_info_impl {
 pub mod platform;
 pub mod device;
 pub mod context;
+pub mod command_queue;
