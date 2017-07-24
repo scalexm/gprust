@@ -186,19 +186,22 @@ impl Context {
     /// # use gprust::{Platform, Context, device, context};
     /// # fn main() {
     /// # let platform = Platform::list().pop().unwrap();
+    /// // `platform` is an object of type `Platform`.
     /// let devices = platform.get_devices(device::TypeBuilder::new().gpu().finish());
+    ///
+    /// // Create a context with all gpu devices available.
     /// let context = Context::create(context::Properties::new(), devices);
     /// # }
     /// ```
     ///
     /// # Errors
     /// * `CreationErrorKind::NoDevice` if `devices` is empty.
-    /// * `InteropUserSyncNotSupported` if `set_interop_user_sync` was called on `properties`,
-    /// and the device does not support it (e.g. a device supporting an OpenCL / OpenGL sharing
-    /// extension).
-    /// * `CannotSelectPlatform` if no platform were specified in `properties`, and a platform
-    /// could not be selected automatically.
-    /// * `DeviceNotAvailable` if one of the devices was not available.
+    /// * `CreationErrorKind::InteropUserSyncNotSupported` if `set_interop_user_sync` was
+    /// called on `properties`, and the device does not support it (e.g. a device supporting a
+    /// OpenCL / OpenGL sharing extension).
+    /// * `CreationErrorKind::CannotSelectPlatform` if no platform were specified in `properties`,
+    /// and a platform could not be selected automatically.
+    /// * `CreationErrorKind::DeviceNotAvailable` if one of the devices was not available.
     ///
     /// # Panics
     /// Panic if the host or a device fails to allocate resources.
