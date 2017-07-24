@@ -287,6 +287,32 @@ impl Device {
         }
     }
 
+    /// Return a default device if any, namely the first GPU device among all available devices
+    /// from all platforms if any, or the first CPU device among all available devices from all
+    /// platforms if any, or the first device among all available devices from all platforms if
+    /// any.
+    ///
+    /// # Panics
+    /// Same as `Platform::get_devices`.
+    pub fn default() -> Option<Device> {
+        use wrapper::types::platform::Platform;
+
+        let devices: Vec<_> = Platform::list().iter()
+                                              .flat_map(|p| p.get_devices(ALL))
+                                              .filter(|d| d.get_info::<information::Available>())
+                                              .collect();
+
+        if let Some(device) = devices.iter().find(|d| d.get_info::<information::Type>().gpu()) {
+            return Some(device.clone());
+        }
+
+        if let Some(device) = devices.iter().find(|d| d.get_info::<information::Type>().cpu()) {
+            return Some(device.clone());
+        }
+
+        devices.into_iter().next()
+    }
+
     // Unsafe because one should be *VERY* careful with dropping and reference counting.
     pub(super) unsafe fn underlying(&self) -> ffi::cl_device_id {
         self.device_id
@@ -326,9 +352,9 @@ impl Device {
     /// # Examples
     /// ```
     /// # extern crate gprust;
-    /// # use gprust::{Platform, device};
+    /// # use gprust::{device, Device};
     /// # fn main() {
-    /// # let device = Platform::list().pop().unwrap().get_devices(device::ALL).pop().unwrap();
+    /// # if let Some(device) = Device::default() {
     /// // `device` is an object of type `Device`.
     /// if let Ok(sub_devices) = device.partition(device::PartitionType::Equally(8)) {
     ///     // Each sub-device in `sub_devices` has 8 compute units.
@@ -341,13 +367,14 @@ impl Device {
     ///     }
     /// }
     /// # }
+    /// # }
     /// ```
     ///
     /// ```
     /// # extern crate gprust;
-    /// # use gprust::{Platform, device};
+    /// # use gprust::{device, Device};
     /// # fn main() {
-    /// # let device = Platform::list().pop().unwrap().get_devices(device::ALL).pop().unwrap();
+    /// # if let Some(device) = Device::default() {
     /// // `device` is an object of type `Device`.
     /// if let Ok(sub_devices) = device.partition(
     ///     device::PartitionType::ByAffinityDomain(
@@ -363,6 +390,7 @@ impl Device {
     ///         );
     ///     }
     /// }
+    /// # }
     /// # }
     /// ```
     ///
@@ -434,11 +462,12 @@ impl Device {
     /// # Examples
     /// ```
     /// # extern crate gprust;
-    /// # use gprust::{Platform, device};
+    /// # use gprust::{device, Device};
     /// # fn main() {
-    /// # let device = Platform::list().pop().unwrap().get_devices(device::ALL).pop().unwrap();
+    /// # if let Some(device) = Device::default() {
     /// // `device` is an object of type `Device`.
     /// let name = device.get_info::<device::information::Name>();
+    /// # }
     /// # }
     /// ```
     ///

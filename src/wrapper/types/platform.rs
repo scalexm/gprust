@@ -56,6 +56,14 @@ impl Platform {
         self.platform_id
     }
 
+    /// Return a default platform if any, namely the first platform given by `Platform::list`.
+    ///
+    /// # Panics
+    /// Same as `list`.
+    pub fn default() -> Option<Platform> {
+        Platform::list().into_iter().next()
+    }
+
     /// Return a list of available OpenCL platforms.
     ///
     /// # Examples
@@ -100,9 +108,10 @@ impl Platform {
     /// # extern crate gprust;
     /// # use gprust::{platform, Platform};
     /// # fn main() {
-    /// # let platform = Platform::list().pop().unwrap();
+    /// # if let Some(platform) = Platform::default() {
     /// // `platform` is an object of type `Platform`.
     /// let name = platform.get_info::<platform::information::Name>();
+    /// # }
     /// # }
     /// ```
     ///
@@ -135,9 +144,10 @@ impl Platform {
     /// # extern crate gprust;
     /// # use gprust::{device, Platform};
     /// # fn main() {
-    /// # let platform = Platform::list().pop().unwrap();
+    /// # if let Some(platform) = Platform::default() {
     /// // Query all devices.
     /// let devices = platform.get_devices(device::ALL);
+    /// # }
     /// # }
     /// ```
     ///
@@ -145,11 +155,12 @@ impl Platform {
     /// # extern crate gprust;
     /// # use gprust::{device, Platform};
     /// # fn main() {
-    /// # let platform = Platform::list().pop().unwrap();
+    /// # if let Some(platform) = Platform::default() {
     /// // Query only devices which type is `CL_DEVICE_TYPE_GPU` or `CL_DEVICE_TYPE_ACCELERATOR`.
     /// let devices = platform.get_devices(
     ///     device::TypeBuilder::new().gpu().accelerator().finish()
     /// );
+    /// # }
     /// # }
     /// ```
     ///

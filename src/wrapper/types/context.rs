@@ -185,12 +185,15 @@ impl Context {
     /// # extern crate gprust;
     /// # use gprust::{Platform, Context, device, context};
     /// # fn main() {
-    /// # let platform = Platform::list().pop().unwrap();
+    /// # if let Some(platform) = Platform::default() {
     /// // `platform` is an object of type `Platform`.
     /// let devices = platform.get_devices(device::TypeBuilder::new().gpu().finish());
     ///
     /// // Create a context with all gpu devices available.
-    /// let context = Context::create(context::Properties::new(), devices);
+    /// if let Ok(context) = Context::create(context::Properties::new(), devices) {
+    ///     /* work with `context` */
+    /// }
+    /// # }
     /// # }
     /// ```
     ///
@@ -258,18 +261,29 @@ impl Context {
         Ok(expect!(result, ffi::CL_OUT_OF_RESOURCES, ffi::CL_OUT_OF_HOST_MEMORY))
     }
 
+    /// Return a default context if any, namely a context with empty properties for
+    /// the device returned by `Device::default`.
+    ///
+    /// # Panics
+    /// Same as `Context::create`.
+    pub fn default() -> Option<Context> {
+        use wrapper::types::device::Device;
+
+        Device::default().and_then(|d| Context::create(Properties::new(), vec![d]).ok())
+    }
+
     /// Query an information to the context. `T` should be a marker type from the `information`
     /// module.
     ///
     /// # Examples
     /// ```
     /// # extern crate gprust;
-    /// # use gprust::{Platform, Context, device, context};
+    /// # use gprust::{Context, context};
     /// # fn main() {
-    /// # let device = Platform::list().pop().unwrap().get_devices(device::ALL).pop().unwrap();
-    /// # let context = Context::create(context::Properties::new(), vec![device]).unwrap();
+    /// # if let Some(context) = Context::default() {
     /// // `context` is an object of type `Context`.
     /// let num_devices = context.get_info::<context::information::NumDevices>();
+    /// # }
     /// # }
     /// ```
     ///
