@@ -53,41 +53,51 @@ pub mod information {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Properties {
-    platform: Option<Platform>,
-    interop_user_sync: bool,
+    platform_field: Option<Platform>,
+    interop_user_sync_field: bool,
 }
 
 impl Properties {
     /// Return an empty properties.
     pub fn new() -> Self {
         Properties {
-            platform: None,
-            interop_user_sync: false,
+            platform_field: None,
+            interop_user_sync_field: false,
         }
+    }
+
+    /// Return the specified platform if any.
+    pub fn platform(&self) -> Option<&Platform> {
+        self.platform_field.as_ref()
     }
 
     /// Specify the platform to use (useful in case of multiple devices from different platforms).
     pub fn set_platform(mut self, platform: Platform) -> Self {
-        self.platform = Some(platform);
+        self.platform_field = Some(platform);
         self
     }
 
     /// Specifiy that the user is responsible for synchronization between OpenCL and other APIs
     /// (see OpenCL specification).
     pub fn set_interop_user_sync(mut self) -> Self {
-        self.interop_user_sync = true;
+        self.interop_user_sync_field = true;
         self
+    }
+
+    /// Return the spcecified boolean flag for `CL_CONTEXT_INTEROP_USER_SYNC`.
+    pub fn interop_user_sync(&self) -> bool {
+        self.interop_user_sync_field
     }
 
     fn into_ffi(self) -> Vec<ffi::cl_context_properties> {
         let mut properties = vec![];
 
-        if let Some(platform) = self.platform {
+        if let Some(platform) = self.platform_field {
             properties.push(ffi::CL_CONTEXT_PLATFORM);
             properties.push(platform.underlying() as _);
         }
 
-        if self.interop_user_sync {
+        if self.interop_user_sync_field {
             properties.push(ffi::CL_CONTEXT_INTEROP_USER_SYNC);
             properties.push(ffi::CL_TRUE as _);
         }

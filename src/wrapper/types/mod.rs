@@ -190,3 +190,4 @@ pub mod platform;
 pub mod device;
 pub mod context;
 pub mod command_queue;
+pub mod mem;
