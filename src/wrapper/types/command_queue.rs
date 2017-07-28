@@ -26,8 +26,6 @@ pub mod information {
             fn $test_fun() {
                 let queue = super::CommandQueue::default().unwrap();
                 let c = queue.get_info::<$type>();
-                println!("{:?}", c);
-                println!("ok");
             }
         };
     }
@@ -83,21 +81,21 @@ impl CommandQueue {
     /// # Examples
     /// ```
     /// # extern crate gprust;
-    /// # use gprust::{Device, Context, CommandQueue, command_queue};
-    /// # fn main() {
-    /// # if let Some(context) = Context::default() {
-    /// # if let Some(device) = Device::default() {
-    /// // `context` is an object of type `Context`, and `device` is an object of type `Device`.
+    /// use gprust::{Device, Context, CommandQueue, command_queue};
+    ///
+    /// # fn main_() -> Result<(), &'static str> {
+    /// let context = Context::default().ok_or("no default context")?;
+    /// let device = Device::default().ok_or("no default device")?;
     /// if let Ok(queue) = CommandQueue::create(
-    ///     context,
-    ///     device,
+    ///     &context,
+    ///     &device,
     ///     command_queue::PropertiesBuilder::new().out_of_order_exec().finish()
     /// ) {
     ///     /* work with queue */
     /// }
+    /// # Ok(())
     /// # }
-    /// # }
-    /// # }
+    /// # fn main() { main_().unwrap(); }
     /// ```
     ///
     /// # Errors
@@ -108,9 +106,11 @@ impl CommandQueue {
     ///
     /// # Panics
     /// Panic if the host or the device fails to allocate resources.
-    pub fn create(context: Context, device: Device, properties: Properties)
+    pub fn create(context: &Context, device: &Device, properties: Properties)
         -> creation_error::Result<CommandQueue>
     {
+        use wrapper::types::context;
+
         let mut error = 0;
         let queue = unsafe {
             ffi::clCreateCommandQueue(
@@ -139,7 +139,7 @@ impl CommandQueue {
     /// Same as `CommandQueue::create`.
     pub fn default() -> Option<CommandQueue> {
         Device::default().and_then(|d| Context::default().map(|c| (c, d)))
-                         .and_then(|(c, d)| CommandQueue::create(c, d, Properties::new()).ok())
+                         .and_then(|(c, d)| CommandQueue::create(&c, &d, Properties::new()).ok())
     }
 
     /// Query an information to the command queue. `T` should be a marker type from the
@@ -148,13 +148,14 @@ impl CommandQueue {
     /// # Examples
     /// ```
     /// # extern crate gprust;
-    /// # use gprust::{CommandQueue, command_queue};
-    /// # fn main() {
-    /// # if let Some(queue) = CommandQueue::default() {
-    /// // `queue` is an object of type `CommandQueue`.
+    /// use gprust::{CommandQueue, command_queue};
+    ///
+    /// # fn main_() -> Result<(), &'static str> {
+    /// let queue = CommandQueue::default().ok_or("no default command queue")?;
     /// let device = queue.get_info::<command_queue::information::Device>();
+    /// # Ok(())
     /// # }
-    /// # }
+    /// # fn main() { main_().unwrap(); }
     /// ```
     ///
     /// # Panics
@@ -213,7 +214,7 @@ impl fmt::Debug for CommandQueue {
 fn test_relation_to_context_and_device() {
     let context = Context::default().unwrap();
     let device = Device::default().unwrap();
-    let queue = CommandQueue::create(context.clone(), device.clone(), Properties::new()).unwrap();
+    let queue = CommandQueue::create(&context, &device, Properties::new()).unwrap();
 
     assert_eq!(context, queue.get_info::<information::Context>());
     assert_eq!(device, queue.get_info::<information::Device>());
@@ -223,8 +224,8 @@ fn test_relation_to_context_and_device() {
 fn test_relation_to_properties() {
     let properties = PropertiesBuilder::new().profiling().finish();
     let queue = CommandQueue::create(
-        Context::default().unwrap(),
-        Device::default().unwrap(),
+        &Context::default().unwrap(),
+        &Device::default().unwrap(),
         properties.clone()
     );
     

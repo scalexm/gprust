@@ -42,14 +42,15 @@ pub mod information {
 /// # Examples
 /// ```
 /// # extern crate gprust;
-/// # use gprust::context;
-/// # use gprust::Platform;
-/// # fn main() {
-/// # let platform = Platform::list().pop().unwrap();
-/// // `platform` is an object of type `Platform`.
+/// use gprust::{context, Platform};
+///
+/// # fn main_() -> Result<(), &'static str> {
+/// let platform = Platform::default().ok_or("no default platform")?;
 /// let properties = context::Properties::new().set_interop_user_sync()
 ///                                            .set_platform(platform);
+/// # Ok(())
 /// # }
+/// # fn main() { main_().unwrap() }
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Properties {
@@ -200,18 +201,19 @@ impl Context {
     /// # Examples
     /// ```
     /// # extern crate gprust;
-    /// # use gprust::{Platform, Context, device, context};
-    /// # fn main() {
-    /// # if let Some(platform) = Platform::default() {
-    /// // `platform` is an object of type `Platform`.
+    /// use gprust::{Platform, Context, device, context};
+    ///
+    /// # fn main_() -> Result<(), &'static str> {
+    /// let platform = Platform::default().ok_or("not default platform")?;
     /// let devices = platform.get_devices(device::TypeBuilder::new().gpu().finish());
     ///
     /// // Create a context with all gpu devices available.
-    /// if let Ok(context) = Context::create(devices, context::Properties::new()) {
+    /// if let Ok(context) = Context::create(devices.iter(), context::Properties::new()) {
     ///     /* work with `context` */
     /// }
+    /// # Ok(())
     /// # }
-    /// # }
+    /// # fn main() { main_().unwrap(); }
     /// ```
     ///
     /// # Errors
@@ -225,16 +227,14 @@ impl Context {
     ///
     /// # Panics
     /// Panic if the host or a device fails to allocate resources.
-    pub fn create<I: IntoIterator<Item = Device>>(devices: I, properties: Properties)
+    pub fn create<'a, I: Iterator<Item = &'a Device>>(devices: I, properties: Properties)
         -> creation_error::Result<Self>
     {
         use std::ptr;
 
-        // Be sure to keep this alive so that the device ids are not released.
-        let devices: Vec<_> = devices.into_iter().collect();
-        let device_ids: Vec<_> = devices.iter().map(|d| unsafe { d.underlying() }).collect();
+        let device_ids: Vec<_> = devices.map(|d| unsafe { d.underlying() }).collect();
 
-        if devices.is_empty() {
+        if device_ids.is_empty() {
             return Err(CreationErrorKind::NoDevice.into());
         }
 
@@ -286,7 +286,7 @@ impl Context {
     pub fn default() -> Option<Context> {
         use wrapper::types::device::Device;
 
-        Device::default().and_then(|d| Context::create(vec![d], Properties::new()).ok())
+        Device::default().and_then(|d| Context::create(Some(d).iter(), Properties::new()).ok())
     }
 
     /// Query an information to the context. `T` should be a marker type from the `information`
@@ -295,13 +295,14 @@ impl Context {
     /// # Examples
     /// ```
     /// # extern crate gprust;
-    /// # use gprust::{Context, context};
-    /// # fn main() {
-    /// # if let Some(context) = Context::default() {
-    /// // `context` is an object of type `Context`.
+    /// use gprust::{Context, context};
+    ///
+    /// # fn main_() -> Result<(), &'static str> {
+    /// let context = Context::default().ok_or("no default context")?;
     /// let num_devices = context.get_info::<context::information::NumDevices>();
+    /// # Ok(())
     /// # }
-    /// # }
+    /// # fn main() { main_().unwrap(); }
     /// ```
     ///
     /// # Panics
@@ -372,7 +373,7 @@ fn test_relation_to_devices() {
 
     let platform = Platform::default().unwrap();
     let devices = platform.get_devices(device::TypeBuilder::new().cpu().gpu().finish());
-    let context = Context::create(devices.clone(), Properties::new()).unwrap();
+    let context = Context::create(devices.iter(), Properties::new()).unwrap();
     assert_eq!(
         devices.len(),
         context.get_info::<information::NumDevices>() as usize
@@ -386,14 +387,14 @@ fn test_relation_to_properties() {
 
     let platform = Platform::default().unwrap();
     for d in platform.get_devices(device::TypeBuilder::new().cpu().gpu().finish()) {
-        let context = Context::create(vec![d.clone()], Properties::new()).unwrap();
+        let context = Context::create(Some(&d).into_iter(), Properties::new()).unwrap();
         assert_eq!(
             Properties::new(),
             context.get_info::<information::Properties>()
         );
 
         let properties = Properties::new().set_platform(platform.clone());
-        let context = Context::create(vec![d], properties.clone()).unwrap();
+        let context = Context::create(Some(&d).into_iter(), properties.clone()).unwrap();
         assert_eq!(
             properties,
             context.get_info::<information::Properties>()

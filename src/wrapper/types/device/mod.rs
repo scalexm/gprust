@@ -348,10 +348,10 @@ impl Device {
     /// # Examples
     /// ```
     /// # extern crate gprust;
-    /// # use gprust::{device, Device};
-    /// # fn main() {
-    /// # if let Some(device) = Device::default() {
-    /// // `device` is an object of type `Device`.
+    /// use gprust::{device, Device};
+    ///
+    /// # fn main_() -> Result<(), &'static str> {
+    /// let device = Device::default().ok_or("no default device")?;
     /// if let Ok(sub_devices) = device.partition(device::PartitionType::Equally(8)) {
     ///     // Each sub-device in `sub_devices` has 8 compute units.
     ///     for sub in sub_devices {
@@ -362,16 +362,17 @@ impl Device {
     ///         );
     ///     }
     /// }
+    /// # Ok(())
     /// # }
-    /// # }
+    /// # fn main() { main_().unwrap(); }
     /// ```
     ///
     /// ```
     /// # extern crate gprust;
-    /// # use gprust::{device, Device};
-    /// # fn main() {
-    /// # if let Some(device) = Device::default() {
-    /// // `device` is an object of type `Device`.
+    /// use gprust::{device, Device};
+    ///
+    /// # fn main_() -> Result<(), &'static str> {
+    /// let device = Device::default().ok_or("no default device")?;
     /// if let Ok(sub_devices) = device.partition(
     ///     device::PartitionType::ByAffinityDomain(
     ///         device::AffinityDomainBuilder::new().next_partitionable().finish()
@@ -386,8 +387,9 @@ impl Device {
     ///         );
     ///     }
     /// }
+    /// # Ok(())
     /// # }
-    /// # }
+    /// # fn main() { main_().unwrap(); }
     /// ```
     ///
     /// # Errors
@@ -458,13 +460,14 @@ impl Device {
     /// # Examples
     /// ```
     /// # extern crate gprust;
-    /// # use gprust::{device, Device};
-    /// # fn main() {
-    /// # if let Some(device) = Device::default() {
-    /// // `device` is an object of type `Device`.
+    /// use gprust::{device, Device};
+    ///
+    /// # fn main_() -> Result<(), &'static str> {
+    /// let device = Device::default().ok_or("no default device")?;
     /// let name = device.get_info::<device::information::Name>();
+    /// # Ok(())
     /// # }
-    /// # }
+    /// # fn main() { main_().unwrap(); }
     /// ```
     ///
     /// # Panics

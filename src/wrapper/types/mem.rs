@@ -33,7 +33,7 @@ pub mod information {
             fn $test_fun() {
                 let context = context::Context::default().unwrap();
                 let data = vec![1, 2, 3, 4];
-                let buffer = super::Buffer::create(data, context, super::Flags::new());
+                let buffer = super::Buffer::create(data, &context, super::Flags::new()).unwrap();
                 let _ = buffer.get_info::<$type>();
             }
         };
@@ -62,14 +62,18 @@ mod creation_error {
         }
 
         errors {
-            EmptySlice
+            EmptySlice {
+                description("no data was provided (ZST not supported)")
+            }
 
             InvalidFlags(s: &'static str) {
                 description("invalid flags")
                 display("{}", s)
             }
 
-            AllocationFailure
+            AllocationFailure {
+                description("failed to allocate memory")
+            }
         }
     }
 }
@@ -79,7 +83,7 @@ pub use self::creation_error::{CreationError, CreationErrorKind};
 impl Buffer {
     unsafe fn from_ffi(buffer: ffi::cl_mem, retain: bool) -> Self {
         if retain {
-            catch_ffi(unsafe { ffi::clRetainMemObject(buffer) }).unwrap();
+            catch_ffi(ffi::clRetainMemObject(buffer)).unwrap();
         }
 
         Buffer {
@@ -91,9 +95,11 @@ impl Buffer {
         self.buffer
     }
 
-    pub fn create<I>(data: I, context: Context, mut flags: Flags) -> creation_error::Result<Self>
+    pub fn create<I>(data: I, context: &Context, mut flags: Flags) -> creation_error::Result<Self>
         where I: IntoIterator, I::IntoIter: ExactSizeIterator
     {
+        use wrapper::types::context;
+
         if (flags.read_write() && flags.read_only()) || (flags.read_write() && flags.write_only())
             || (flags.read_only() && flags.write_only())
         {

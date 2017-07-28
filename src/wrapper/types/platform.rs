@@ -67,7 +67,8 @@ impl Platform {
     /// # Examples
     /// ```
     /// # extern crate gprust;
-    /// # use gprust::platform::Platform;
+    /// use gprust::platform::Platform;
+    ///
     /// # fn main() {
     /// for p in Platform::list() {
     ///     println!("{:?}", p);
@@ -104,13 +105,14 @@ impl Platform {
     /// # Examples
     /// ```
     /// # extern crate gprust;
-    /// # use gprust::{platform, Platform};
-    /// # fn main() {
-    /// # if let Some(platform) = Platform::default() {
-    /// // `platform` is an object of type `Platform`.
+    /// use gprust::{platform, Platform};
+    ///
+    /// # fn main_() -> Result<(), &'static str> {
+    /// let platform = Platform::default().ok_or("no default platform")?;
     /// let name = platform.get_info::<platform::information::Name>();
+    /// # Ok(())
     /// # }
-    /// # }
+    /// # fn main() { main_().unwrap(); }
     /// ```
     ///
     /// # Panics
@@ -140,26 +142,30 @@ impl Platform {
     /// # Examples
     /// ```
     /// # extern crate gprust;
-    /// # use gprust::{device, Platform};
-    /// # fn main() {
-    /// # if let Some(platform) = Platform::default() {
+    /// use gprust::{device, Platform};
+    ///
+    /// # fn main_() -> Result<(), &'static str> {
+    /// let platform = Platform::default().ok_or("no default platform")?;
     /// // Query all devices.
     /// let devices = platform.get_devices(device::ALL);
+    /// # Ok(())
     /// # }
-    /// # }
+    /// # fn main() { main_().unwrap(); }
     /// ```
     ///
     /// ```
     /// # extern crate gprust;
-    /// # use gprust::{device, Platform};
-    /// # fn main() {
-    /// # if let Some(platform) = Platform::default() {
+    /// use gprust::{device, Platform};
+    ///
+    /// # fn main_() -> Result<(), &'static str> {
+    /// let platform = Platform::default().ok_or("no default platform")?;
     /// // Query only devices which type is `CL_DEVICE_TYPE_GPU` or `CL_DEVICE_TYPE_ACCELERATOR`.
     /// let devices = platform.get_devices(
     ///     device::TypeBuilder::new().gpu().accelerator().finish()
     /// );
+    /// # Ok(())
     /// # }
-    /// # }
+    /// # fn main() { main_().unwrap(); }
     /// ```
     ///
     /// # Panics
@@ -184,6 +190,23 @@ impl Platform {
         }
 
         expect!(result, ffi::CL_OUT_OF_HOST_MEMORY, ffi::CL_OUT_OF_RESOURCES)
+    }
+
+    /// Return the first device which name contains `pattern` if any.
+    /// Not case-sentitive.
+    ///
+    /// # Panics
+    /// Same as `Platform::get_devices`.
+    pub fn match_device(&self, pattern: &str) -> Option<Device> {
+        use wrapper::types::device;
+
+        let lowercase = pattern.to_lowercase();
+        self.get_devices(device::ALL)
+            .into_iter()
+            .find(|d| d.get_info::<device::information::Name>()
+                       .to_lowercase()
+                       .contains(&lowercase)
+            )
     }
 }
 
