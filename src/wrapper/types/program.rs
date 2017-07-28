@@ -2,8 +2,71 @@
 
 use wrapper::ffi;
 use wrapper::types::context::Context;
+use wrapper::information::InformationResult;
 use errors::*;
 use std::ptr;
+
+enumz!(
+    BuildStatus,
+    ffi::cl_build_status,
+    "cl_build_status",
+    None => [ffi::CL_BUILD_NONE, "CL_BUILD_NONE"],
+    Error => [ffi::CL_BUILD_ERROR, "CL_BUILD_ERROR"],
+    Success => [ffi::CL_BUILD_SUCCESS, "CL_BUILD_SUCCESS"],
+    InProgress => [ffi::CL_BUILD_IN_PROGRESS, "CL_BUILD_IN_PROGRESS"]
+);
+
+enumz!(
+    BinaryType,
+    ffi::cl_program_binary_type,
+    "cl_program_binary_type",
+    None => [ffi::CL_PROGRAM_BINARY_TYPE_NONE, "CL_PROGRAM_BINARY_TYPE_NONE"],
+    CompiledObject => [ffi::CL_PROGRAM_BINARY_TYPE_COMPILED_OBJECT, "CL_PROGRAM_BINARY_TYPE_COMPILED_OBJECT"],
+    Library => [ffi::CL_PROGRAM_BINARY_TYPE_LIBRARY, "CL_PROGRAM_BINARY_TYPE_LIBRARY"],
+    Executable => [ffi::CL_PROGRAM_BINARY_TYPE_EXECUTABLE, "CL_PROGRAM_BINARY_TYPE_LIBRARY"]
+);
+
+mod information {
+    use wrapper::ffi;
+    use wrapper::information::*;
+    use wrapper::types::context;
+    use wrapper::types::device;
+
+    pub trait ProgramInformation: Information<ffi::cl_program_info> { }
+
+    macro_rules! info_impl {
+        ($type: ident, $result: ty, $id: expr, $id_name: expr, $test_fun: ident) => {
+            general_info_impl!(ProgramInformation, ffi::cl_program_info, $type, $result, $id, $id_name);
+        };
+
+        // test_fun
+    }
+
+    info_impl!(ReferenceCount, ffi::cl_uint, ffi::CL_PROGRAM_REFERENCE_COUNT, "CL_PROGRAM_REFERENCE_COUNT", test_reference_count);
+    info_impl!(Context, context::Context, ffi::CL_PROGRAM_CONTEXT, "CL_PROGRAM_CONTEXT", test_context);
+    info_impl!(NumDevices, ffi::cl_uint, ffi::CL_PROGRAM_NUM_DEVICES, "CL_PROGRAM_NUM_DEVICES", test_num_devices);
+    info_impl!(Devices, Vec<device::Device>, ffi::CL_PROGRAM_DEVICES, "CL_PROGRAM_DEVICES", test_devices);
+    info_impl!(Source, String, ffi::CL_PROGRAM_SOURCE, "CL_PROGRAM_SOURCE", test_source);
+    info_impl!(BinarySizes, Vec<usize>, ffi::CL_PROGRAM_BINARY_SIZES, "CL_PROGRAM_BINARY_SIZES", test_binary_sizes);
+    // ProgramBinaries
+    info_impl!(NumKernels, usize, ffi::CL_PROGRAM_NUM_KERNELS, "CL_PROGRAM_NUM_KERNELS", test_num_kernels);
+    info_impl!(KernelNames, String, ffi::CL_PROGRAM_KERNEL_NAMES, "CL_PROGRAM_KERNEL_NAMES", test_kernel_names);
+
+    pub trait BuildInformation: Information<ffi::cl_program_build_info> { }
+
+    macro_rules! build_info_impl {
+        ($type: ident, $result: ty, $id: expr, $id_name: expr, $test_fun: ident) => {
+            general_info_impl!(BuildInformation, ffi::cl_program_build_info, $type, $result, $id, $id_name);
+        };
+
+        // test_fun
+    }
+
+    build_info_impl!(BuildStatus, super::BuildStatus, ffi::CL_PROGRAM_BUILD_STATUS, "CL_PROGRAM_BUILD_STATUS", test_build_status);
+    build_info_impl!(BuildOptions, String, ffi::CL_PROGRAM_BUILD_OPTIONS, "CL_PROGRAM_BUILD_OPTIONS", test_build_options);
+    build_info_impl!(BuildLog, String, ffi::CL_PROGRAM_BUILD_LOG, "CL_PROGRAM_BUILD_LOG", test_build_log);
+    build_info_impl!(BinaryType, super::BinaryType, ffi::CL_PROGRAM_BINARY_TYPE, "CL_PROGRAM_BINARY_TYPE", test_binary_type);
+}
 
 /// `Program` is a high-level type which maps to the low-level `cl_program` OpenCL type.
 /// An object of type `Program` acts as a reference to an OpenCL program. Hence, cloning
@@ -118,7 +181,11 @@ impl Builder {
         } else if err == ffi::CL_COMPILER_NOT_AVAILABLE {
             return Err(BuildErrorKind::CompilerNotAvailable.into());
         } else if err == ffi::CL_BUILD_PROGRAM_FAILURE {
-            return Err(BuildErrorKind::BuildProgramFailure(String::new()).into());
+            return Err(
+                BuildErrorKind::BuildProgramFailure(
+                    self.program.get_build_info::<information::BuildLog>()
+                ).into()
+            );
         }
 
         let result = catch_ffi(err).map(move |()| self.program );
@@ -127,6 +194,51 @@ impl Builder {
 
     pub fn build(self) -> build_error::Result<Program> {
         self.build_with_options("")
+    }
+}
+
+impl Program {
+    pub fn get_info<T: information::ProgramInformation>(&self) -> T::Result {
+        let result = unsafe {
+            InformationResult::get_info(|size, value, ret_size| {
+                ffi::clGetProgramInfo(
+                    self.program,
+                    T::id(),
+                    size,
+                    value as _,
+                    ret_size
+                )
+            })
+        };
+
+        expect!(
+            result,
+            ffi::CL_OUT_OF_RESOURCES,
+            ffi::CL_OUT_OF_HOST_MEMORY,
+            ffi::CL_INVALID_VALUE
+        )
+    }
+
+    pub fn get_build_info<T: information::BuildInformation>(&self) -> T::Result {
+        let result = unsafe {
+            InformationResult::get_info(|size, value, ret_size| {
+                ffi::clGetProgramBuildInfo(
+                    self.program,
+                    self.get_info::<information::Devices>().first().unwrap().underlying(),
+                    T::id(),
+                    size,
+                    value as _,
+                    ret_size
+                )
+            })
+        };
+
+        expect!(
+            result,
+            ffi::CL_OUT_OF_RESOURCES,
+            ffi::CL_OUT_OF_HOST_MEMORY,
+            ffi::CL_INVALID_VALUE
+        )
     }
 }
 

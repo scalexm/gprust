@@ -31,11 +31,11 @@ macro_rules! bitfield {
         impl ::wrapper::information::InformationResult<usize> for $name {
             type Item = ::wrapper::ffi::cl_bitfield;
 
-            unsafe fn ask_info<F>(function: F) -> Result<Self>
+            unsafe fn get_info<F>(function: F) -> Result<Self>
                 where F: Fn(usize, *mut Self::Item, *mut usize) -> ::wrapper::ffi::cl_int
             {
                 use wrapper::information::InformationResult;
-                InformationResult::ask_info(function).map(|bitfield| $name { bitfield })
+                InformationResult::get_info(function).map(|bitfield| $name { bitfield })
             }
         }
     };
@@ -112,11 +112,11 @@ macro_rules! enumz {
         impl ::wrapper::information::InformationResult<usize> for $name {
             type Item = $type;
 
-            unsafe fn ask_info<F>(function: F) -> Result<Self>
+            unsafe fn get_info<F>(function: F) -> Result<Self>
                 where F: Fn(usize, *mut Self::Item, *mut usize) -> ::wrapper::ffi::cl_int
             {
                 use wrapper::information::InformationResult;
-                InformationResult::ask_info(function).map($name::from_ffi)
+                InformationResult::get_info(function).map($name::from_ffi)
             }
         }
     };
@@ -129,24 +129,24 @@ macro_rules! map_ffi_impl {
         impl ::wrapper::information::InformationResult<usize> for $name {
             type Item = $type;
 
-            unsafe fn ask_info<F>(function: F) -> Result<Self>
+            unsafe fn get_info<F>(function: F) -> Result<Self>
                 where F: Fn(usize, *mut Self::Item, *mut usize) -> ::wrapper::ffi::cl_int
             {
                 use wrapper::information::InformationResult;
 
                 // Always retain when using `InformationResult`.
-                InformationResult::ask_info(function).map(|val| $name::from_ffi(val, true))
+                InformationResult::get_info(function).map(|val| $name::from_ffi(val, true))
             }
         }
 
         impl ::wrapper::information::InformationResult<usize> for Vec<$name> {
             type Item = $type;
 
-            unsafe fn ask_info<F>(function: F) -> Result<Self>
+            unsafe fn get_info<F>(function: F) -> Result<Self>
                 where F: Fn(usize, *mut Self::Item, *mut usize) -> ::wrapper::ffi::cl_int
             {
                 use wrapper::information::InformationResult;
-                let vec: Result<Vec<_>> = InformationResult::ask_info(function);
+                let vec: Result<Vec<_>> = InformationResult::get_info(function);
                 Ok(vec?.into_iter().map(|val| $name::from_ffi(val, true)).collect())
             }
         }
@@ -154,7 +154,7 @@ macro_rules! map_ffi_impl {
         impl ::wrapper::information::InformationResult<::wrapper::ffi::cl_uint> for Vec<$name> {
             type Item = $type;
 
-            unsafe fn ask_info<F>(function: F) -> Result<Self>
+            unsafe fn get_info<F>(function: F) -> Result<Self>
                 where F: Fn(
                     ::wrapper::ffi::cl_uint,
                     *mut Self::Item,
@@ -162,14 +162,14 @@ macro_rules! map_ffi_impl {
                 ) -> ::wrapper::ffi::cl_int
             {
                 use wrapper::information::InformationResult;
-                let vec: Result<Vec<_>> = InformationResult::ask_info(function);
+                let vec: Result<Vec<_>> = InformationResult::get_info(function);
                 Ok(vec?.into_iter().map(|val| $name::from_ffi(val, true)).collect())
             }
         }
     };
 }
 
-macro_rules! generic_info_impl {
+macro_rules! general_info_impl {
     ($trait: ident, $id_type: ty, $type: ident, $result: ty, $id: expr, $id_name: expr) => {
         #[doc="Marker type mapping to `"] #[doc=$id_name] #[doc="`."]
         pub struct $type;

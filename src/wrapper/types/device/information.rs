@@ -9,7 +9,7 @@ pub trait DeviceInformation: Information<ffi::cl_device_info> { }
 
 macro_rules! info_impl {
     ($type: ident, $result: ty, $id: expr, $id_name: expr, $test_fun: ident) => {
-        generic_info_impl!(DeviceInformation, ffi::cl_device_info, $type, $result, $id, $id_name);
+        general_info_impl!(DeviceInformation, ffi::cl_device_info, $type, $result, $id, $id_name);
 
         #[test]
         fn $test_fun() {

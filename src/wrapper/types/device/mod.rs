@@ -125,10 +125,10 @@ impl PartitionType {
 impl InformationResult<usize> for Option<PartitionType> {
     type Item = ffi::cl_device_partition_property;
 
-    unsafe fn ask_info<F>(function: F) -> Result<Self>
+    unsafe fn get_info<F>(function: F) -> Result<Self>
         where F: Fn(usize, *mut Self::Item, *mut usize) -> ffi::cl_int
     {
-        let mut properties: Vec<_> = InformationResult::ask_info(function)?;
+        let mut properties: Vec<_> = InformationResult::get_info(function)?;
 
         // Empty or single trailing `0`.
         if properties.len() <= 1 {
@@ -187,10 +187,10 @@ impl PartitionProperties {
 impl InformationResult<usize> for PartitionProperties {
     type Item = ffi::cl_device_partition_property;
 
-    unsafe fn ask_info<F>(function: F) -> Result<Self>
+    unsafe fn get_info<F>(function: F) -> Result<Self>
         where F: Fn(usize, *mut Self::Item, *mut usize) -> ffi::cl_int
     {
-        let properties: Vec<_> = InformationResult::ask_info(function)?;
+        let properties: Vec<_> = InformationResult::get_info(function)?;
         Ok(PartitionProperties {
             equally: properties.contains(&ffi::CL_DEVICE_PARTITION_EQUALLY),
             by_counts: properties.contains(&ffi::CL_DEVICE_PARTITION_BY_COUNTS),
@@ -222,17 +222,17 @@ pub enum ParentDevice {
 impl InformationResult<usize> for ParentDevice {
     type Item = ffi::cl_device_id;
 
-    unsafe fn ask_info<F>(function: F) -> Result<Self>
+    unsafe fn get_info<F>(function: F) -> Result<Self>
         where F: Fn(usize, *mut Self::Item, *mut usize) -> ffi::cl_int
     {
         use std::ptr;
 
-        let device_id = InformationResult::ask_info(function)?;
+        let device_id = InformationResult::get_info(function)?;
 
         // The OpenCL specification states that if the device is a root-level one, `device_id`
         // will be a null pointer. Unfortunately, this is not the case on Apple platforms (at
         // least on mine), where `device_id` will simply not be filled. Hence, on these platforms
-        // we rely on the default initialization to null in `InformationResult::ask_info` for
+        // we rely on the default initialization to null in `InformationResult::get_info` for
         // scalar types. Indeed, since `device_id` will be initialized to null but not filled,
         // it will remain null after the call to `clGetDeviceInfo`.
 
@@ -477,7 +477,7 @@ impl Device {
     /// and cargo features have not been set correctly, otherwise it is a bug).
     pub fn get_info<T: information::DeviceInformation>(&self) -> T::Result {
         let result = unsafe {
-            InformationResult::ask_info(|size, value, ret_size| {
+            InformationResult::get_info(|size, value, ret_size| {
                 ffi::clGetDeviceInfo(
                     self.device_id,
                     T::id(),

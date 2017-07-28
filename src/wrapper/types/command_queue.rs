@@ -20,7 +20,7 @@ pub mod information {
 
     macro_rules! info_impl {
         ($type: ident, $result: ty, $id: expr, $id_name: expr, $test_fun: ident) => {
-            generic_info_impl!(CommandQueueInformation, ffi::cl_command_queue_info, $type, $result, $id, $id_name);
+            general_info_impl!(CommandQueueInformation, ffi::cl_command_queue_info, $type, $result, $id, $id_name);
 
             #[test]
             fn $test_fun() {
@@ -165,7 +165,7 @@ impl CommandQueue {
     /// context and cargo features have not been set correctly, otherwise it is a bug).
     pub fn get_info<T: information::CommandQueueInformation>(&self) -> T::Result {
         let result = unsafe {
-            InformationResult::ask_info(|size, value, ret_size| {
+            InformationResult::get_info(|size, value, ret_size| {
                 ffi::clGetCommandQueueInfo(
                     self.queue,
                     T::id(),

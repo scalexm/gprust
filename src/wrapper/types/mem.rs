@@ -27,7 +27,7 @@ pub mod information {
 
     macro_rules! info_impl {
         ($type: ident, $result: ty, $id: expr, $id_name: expr, $test_fun: ident) => {
-            generic_info_impl!(MemInformation, ffi::cl_mem_info, $type, $result, $id, $id_name);
+            general_info_impl!(MemInformation, ffi::cl_mem_info, $type, $result, $id, $id_name);
 
             #[test]
             fn $test_fun() {
@@ -151,7 +151,7 @@ impl Buffer {
 
     pub fn get_info<T: information::MemInformation>(&self) -> T::Result {
         let result = unsafe {
-            InformationResult::ask_info(|size, value, ret_size| {
+            InformationResult::get_info(|size, value, ret_size| {
                 ffi::clGetMemObjectInfo(
                     self.buffer,
                     T::id(),

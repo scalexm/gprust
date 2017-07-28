@@ -294,27 +294,32 @@ pub const CL_SAMPLER_FILTER_MODE: cl_int = 4436;
 pub const CL_MAP_READ: cl_int = 1;
 pub const CL_MAP_WRITE: cl_int = 2;
 pub const CL_MAP_WRITE_INVALIDATE_REGION: cl_int = 4;
-pub const CL_PROGRAM_REFERENCE_COUNT: cl_int = 4448;
-pub const CL_PROGRAM_CONTEXT: cl_int = 4449;
-pub const CL_PROGRAM_NUM_DEVICES: cl_int = 4450;
-pub const CL_PROGRAM_DEVICES: cl_int = 4451;
-pub const CL_PROGRAM_SOURCE: cl_int = 4452;
-pub const CL_PROGRAM_BINARY_SIZES: cl_int = 4453;
-pub const CL_PROGRAM_BINARIES: cl_int = 4454;
-pub const CL_PROGRAM_NUM_KERNELS: cl_int = 4455;
-pub const CL_PROGRAM_KERNEL_NAMES: cl_int = 4456;
-pub const CL_PROGRAM_BUILD_STATUS: cl_int = 4481;
-pub const CL_PROGRAM_BUILD_OPTIONS: cl_int = 4482;
-pub const CL_PROGRAM_BUILD_LOG: cl_int = 4483;
-pub const CL_PROGRAM_BINARY_TYPE: cl_int = 4484;
-pub const CL_PROGRAM_BINARY_TYPE_NONE: cl_int = 0;
-pub const CL_PROGRAM_BINARY_TYPE_COMPILED_OBJECT: cl_int = 1;
-pub const CL_PROGRAM_BINARY_TYPE_LIBRARY: cl_int = 2;
-pub const CL_PROGRAM_BINARY_TYPE_EXECUTABLE: cl_int = 4;
-pub const CL_BUILD_SUCCESS: cl_int = 0;
-pub const CL_BUILD_NONE: cl_int = -1;
-pub const CL_BUILD_ERROR: cl_int = -2;
-pub const CL_BUILD_IN_PROGRESS: cl_int = -3;
+
+pub const CL_PROGRAM_REFERENCE_COUNT: cl_program_info = 4448;
+pub const CL_PROGRAM_CONTEXT: cl_program_info = 4449;
+pub const CL_PROGRAM_NUM_DEVICES: cl_program_info = 4450;
+pub const CL_PROGRAM_DEVICES: cl_program_info = 4451;
+pub const CL_PROGRAM_SOURCE: cl_program_info = 4452;
+pub const CL_PROGRAM_BINARY_SIZES: cl_program_info = 4453;
+pub const CL_PROGRAM_BINARIES: cl_program_info = 4454;
+pub const CL_PROGRAM_NUM_KERNELS: cl_program_info = 4455;
+pub const CL_PROGRAM_KERNEL_NAMES: cl_program_info = 4456;
+
+pub const CL_PROGRAM_BUILD_STATUS: cl_program_build_info = 4481;
+pub const CL_PROGRAM_BUILD_OPTIONS: cl_program_build_info = 4482;
+pub const CL_PROGRAM_BUILD_LOG: cl_program_build_info = 4483;
+pub const CL_PROGRAM_BINARY_TYPE: cl_program_build_info = 4484;
+
+pub const CL_PROGRAM_BINARY_TYPE_NONE: cl_program_binary_type = 0;
+pub const CL_PROGRAM_BINARY_TYPE_COMPILED_OBJECT: cl_program_binary_type = 1;
+pub const CL_PROGRAM_BINARY_TYPE_LIBRARY: cl_program_binary_type = 2;
+pub const CL_PROGRAM_BINARY_TYPE_EXECUTABLE: cl_program_binary_type = 4;
+
+pub const CL_BUILD_SUCCESS: cl_build_status = 0;
+pub const CL_BUILD_NONE: cl_build_status = -1;
+pub const CL_BUILD_ERROR: cl_build_status = -2;
+pub const CL_BUILD_IN_PROGRESS: cl_build_status = -3;
+
 pub const CL_KERNEL_FUNCTION_NAME: cl_int = 4496;
 pub const CL_KERNEL_NUM_ARGS: cl_int = 4497;
 pub const CL_KERNEL_REFERENCE_COUNT: cl_int = 4498;

@@ -20,7 +20,7 @@ pub mod information {
 
     macro_rules! info_impl {
         ($type: ident, $result: ty, $id: expr, $id_name: expr, $test_fun: ident) => {
-            generic_info_impl!(ContextInformation, ffi::cl_context_info, $type, $result, $id, $id_name);
+            general_info_impl!(ContextInformation, ffi::cl_context_info, $type, $result, $id, $id_name);
 
             #[test]
             fn $test_fun() {
@@ -111,10 +111,10 @@ impl Properties {
 impl InformationResult<usize> for Properties {
     type Item = ffi::cl_context_properties;
 
-    unsafe fn ask_info<F>(function: F) -> Result<Self>
+    unsafe fn get_info<F>(function: F) -> Result<Self>
         where F: Fn(usize, *mut Self::Item, *mut usize) -> ffi::cl_int
     {
-        let mut properties: Vec<ffi::cl_context_properties> = InformationResult::ask_info(function)?;
+        let mut properties: Vec<ffi::cl_context_properties> = InformationResult::get_info(function)?;
         if properties.len() >= 1 {
             let _ = properties.pop().unwrap(); // Remove the trailing `0`.
         }
@@ -312,7 +312,7 @@ impl Context {
     /// and cargo features have not been set correctly, otherwise it is a bug).
     pub fn get_info<T: information::ContextInformation>(&self) -> T::Result {
         let result = unsafe {
-            InformationResult::ask_info(|size, value, ret_size| {
+            InformationResult::get_info(|size, value, ret_size| {
                 ffi::clGetContextInfo(
                     self.context,
                     T::id(),

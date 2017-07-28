@@ -17,7 +17,7 @@ pub mod information {
 
     macro_rules! info_impl {
         ($type: ident, $result: ty, $id: expr, $id_name: expr, $test_fun: ident) => {
-            generic_info_impl!(PlatformInformation, ffi::cl_platform_info, $type, $result, $id, $id_name);
+            general_info_impl!(PlatformInformation, ffi::cl_platform_info, $type, $result, $id, $id_name);
 
             #[test]
             fn $test_fun() {
@@ -80,7 +80,7 @@ impl Platform {
     /// Panic if the host fails to allocate resources.
     pub fn list() -> Vec<Platform> {
         let result = unsafe {
-            InformationResult::ask_info(|num_entries, platforms, num_platforms| {
+            InformationResult::get_info(|num_entries, platforms, num_platforms| {
                 ffi::clGetPlatformIDs(num_entries, platforms, num_platforms)
             })
         };
@@ -122,7 +122,7 @@ impl Platform {
     /// been set correctly, otherwise it is a bug).
     pub fn get_info<T: information::PlatformInformation>(&self) -> T::Result {
         let result = unsafe {
-            InformationResult::ask_info(|size, value, ret_size| {
+            InformationResult::get_info(|size, value, ret_size| {
                 ffi::clGetPlatformInfo(
                     self.platform_id,
                     T::id(),
@@ -174,7 +174,7 @@ impl Platform {
         // `InformationResult` will retain the devices, but since these are root-devices, this
         // will have no effect so it's fine.
         let result = unsafe {
-            InformationResult::ask_info(|num_entries, devices, num_devices| {
+            InformationResult::get_info(|num_entries, devices, num_devices| {
                 ffi::clGetDeviceIDs(
                     self.platform_id,
                     ty.get_bitfield(),
