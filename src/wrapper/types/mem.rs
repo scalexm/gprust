@@ -19,10 +19,13 @@ bitfield_builder!(
 );
 
 pub mod information {
+    //! A module containing the information marker types for memory objects.
+
     use wrapper::ffi;
     use wrapper::information::*;
     use wrapper::types::context;
     
+    /// A trait implemented by marker types for retrieving information through `clGetMemObjectInfo`.
     pub trait MemInformation: Information<ffi::cl_mem_info> { }
 
     macro_rules! info_impl {
@@ -50,6 +53,10 @@ pub mod information {
     // Offset
 }
 
+/// `Buffer` is a high-level type which maps to the low-level `cl_mem` OpenCL type.
+/// An object of type `Buffer` acts as a ref-counted reference to an OpenCL memory object.
+/// Be careful: `Buffer` erases type information, so this means that collecting data back from
+/// a buffer will necessarily be unsafe. One should maybe use the `Array` type instead.
 #[derive(PartialEq, Eq)]
 pub struct Buffer {
     buffer: ffi::cl_mem,
@@ -62,15 +69,18 @@ mod creation_error {
         }
 
         errors {
-            EmptySlice {
+            /// No data was provided, or `Buffer::create` was used with an iterator of zero-sized type.
+            NoData {
                 description("no data was provided (ZST not supported)")
             }
 
+            /// The memory flags were invalid (some fields are mutually exclusive).
             InvalidFlags(s: &'static str) {
                 description("invalid flags")
                 display("{}", s)
             }
 
+            /// Failed to allocate data.
             AllocationFailure {
                 description("failed to allocate memory")
             }
@@ -81,25 +91,38 @@ mod creation_error {
 pub use self::creation_error::{CreationError, CreationErrorKind};
 
 impl Buffer {
-    unsafe fn from_ffi(buffer: ffi::cl_mem, retain: bool) -> Self {
-        if retain {
-            catch_ffi(ffi::clRetainMemObject(buffer)).unwrap();
-        }
-
-        Buffer {
-            buffer,
-        }
-    }
-
-    unsafe fn underlying(&self) -> ffi::cl_mem {
-        self.buffer
-    }
-
+    /// Allocate a new buffer from an iterable object. Properties of the memory object can be set
+    /// through the `flags` argument.
+    ///
+    /// # Examples
+    /// ```rust
+    /// # extern crate gprust;
+    /// use gprust::{Context, Buffer, mem};
+    ///
+    /// # fn main_() -> Result<(), &'static str> {
+    /// let context = Context::default().ok_or("no default context")?;
+    /// if let Ok(buffer) = Buffer::create(vec![1i32, 2, 3, 4], &context, mem::Flags::new()) {
+    ///     assert_eq!(
+    ///         buffer.get_info::<mem::information::Size>(),
+    ///         4 * std::mem::size_of::<i32>()
+    ///     );
+    /// }
+    /// # Ok(())
+    /// # }
+    /// # fn main() { main_().unwrap(); }
+    /// ```
+    ///
+    /// # Errors
+    /// * `CreationErrorKind::NoData` if no data was provided.
+    /// * `CreationErrorKind::InvalidFlags(explanation)` if mutually exclusive fields were set.
+    /// An explanation string is provided through `explanation`.
+    /// * `CreationErrorKind::AllocationFailure` if the allocation failed.
+    ///
+    /// # Panics
+    /// Panic if the host or a device fails to allocate resources.
     pub fn create<I>(data: I, context: &Context, mut flags: Flags) -> creation_error::Result<Self>
         where I: IntoIterator, I::IntoIter: ExactSizeIterator
     {
-        use wrapper::types::context;
-
         if (flags.read_write() && flags.read_only()) || (flags.read_write() && flags.write_only())
             || (flags.read_only() && flags.write_only())
         {
@@ -124,7 +147,7 @@ impl Buffer {
         let size = mem::size_of::<I::Item>() * data.len();
 
         if size == 0 {
-            return Err(CreationErrorKind::EmptySlice.into());
+            return Err(CreationErrorKind::NoData.into());
         }
 
         let data: Vec<_> = data.collect();
@@ -149,6 +172,29 @@ impl Buffer {
         Ok(expect!(result, ffi::CL_OUT_OF_RESOURCES, ffi::CL_OUT_OF_HOST_MEMORY))
     }
 
+    /// Query an information to the buffer. `T` should be a marker type from the `information`
+    /// module.
+    ///
+    /// # Examples
+    /// ```
+    /// # extern crate gprust;
+    /// use gprust::{Context, Buffer, mem};
+    ///
+    /// # fn main_() -> Result<(), &'static str> {
+    /// let context = Context::default().ok_or("no default context")?;
+    /// let buffer = Buffer::create(vec![1, 2, 3, 4], &context, mem::Flags::new());
+    /// let buffer = buffer.map_err(|_| "failed to create buffer")?;
+    /// let size = buffer.get_info::<mem::information::Size>();
+    /// # Ok(())
+    /// # }
+    /// # fn main() { main_().unwrap(); }
+    /// ```
+    ///
+    /// # Panics
+    /// Panic if the host or a device fails to allocate resources, or if an invalid information
+    /// param is passed (should only happen when a user incorrectly implements
+    /// `MemInformation` on their own or if the information is not supported on the buffer
+    /// and cargo features have not been set correctly, otherwise it is a bug).
     pub fn get_info<T: information::MemInformation>(&self) -> T::Result {
         let result = unsafe {
             InformationResult::get_info(|size, value, ret_size| {

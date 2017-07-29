@@ -25,7 +25,7 @@ pub mod information {
             #[test]
             fn $test_fun() {
                 let queue = super::CommandQueue::default().unwrap();
-                let c = queue.get_info::<$type>();
+                let _ = queue.get_info::<$type>();
             }
         };
     }
@@ -44,9 +44,7 @@ bitfield_builder!(
 );
 
 /// `CommandQueue` is a high-level type which maps to the low-level `cl_command_queue` OpenCL type.
-/// An object of type `CommandQueue` acts as a reference to an OpenCL command queue. Hence, cloning
-/// a command queue is a shallow copy.
-/// The reference counter of a command queue is incremented on cloning and decrementing on dropping.
+/// An object of type `CommandQueue` acts as a ref-counted reference to an OpenCL command queue.
 #[derive(PartialEq, Eq)]
 pub struct CommandQueue {
     queue: ffi::cl_command_queue,
@@ -109,8 +107,6 @@ impl CommandQueue {
     pub fn create(context: &Context, device: &Device, properties: Properties)
         -> creation_error::Result<CommandQueue>
     {
-        use wrapper::types::context;
-
         let mut error = 0;
         let queue = unsafe {
             ffi::clCreateCommandQueue(

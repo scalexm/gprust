@@ -26,20 +26,41 @@ enumz!(
     Executable => [ffi::CL_PROGRAM_BINARY_TYPE_EXECUTABLE, "CL_PROGRAM_BINARY_TYPE_LIBRARY"]
 );
 
-mod information {
+pub mod information {
+    //! A module containing the information marker types for programs.
+
     use wrapper::ffi;
     use wrapper::information::*;
     use wrapper::types::context;
     use wrapper::types::device;
 
+    /// A trait implemented by marker types for retrieving information through `clGetProgramInfo`.
     pub trait ProgramInformation: Information<ffi::cl_program_info> { }
+
+    macro_rules! test_fun {
+        ($test_fun: ident, $type: ident, $info_fun: ident) => {
+            #[test]
+            fn $test_fun() {
+                let context = context::Context::default().unwrap();
+                let program = super::Builder::create_with_sources(
+                    Some("__kernel void addFFT(__global float * filter, __global float * temp, float coeff) {
+                        int ind = get_global_id(0);
+                        filter[2 * ind] += temp[ind] * coeff;
+                    }"),
+                    &context
+                ).unwrap();
+                let program = program.build().unwrap();
+                let _ = program.$info_fun::<$type>();
+            }
+        };
+    }
 
     macro_rules! info_impl {
         ($type: ident, $result: ty, $id: expr, $id_name: expr, $test_fun: ident) => {
             general_info_impl!(ProgramInformation, ffi::cl_program_info, $type, $result, $id, $id_name);
-        };
 
-        // test_fun
+            test_fun!($test_fun, $type, get_info);
+        };
     }
 
     info_impl!(ReferenceCount, ffi::cl_uint, ffi::CL_PROGRAM_REFERENCE_COUNT, "CL_PROGRAM_REFERENCE_COUNT", test_reference_count);
@@ -52,14 +73,15 @@ mod information {
     info_impl!(NumKernels, usize, ffi::CL_PROGRAM_NUM_KERNELS, "CL_PROGRAM_NUM_KERNELS", test_num_kernels);
     info_impl!(KernelNames, String, ffi::CL_PROGRAM_KERNEL_NAMES, "CL_PROGRAM_KERNEL_NAMES", test_kernel_names);
 
+    /// A trait implemented by marker types for retrieving information through `clGetProgramBuildInfo`.
     pub trait BuildInformation: Information<ffi::cl_program_build_info> { }
 
     macro_rules! build_info_impl {
         ($type: ident, $result: ty, $id: expr, $id_name: expr, $test_fun: ident) => {
             general_info_impl!(BuildInformation, ffi::cl_program_build_info, $type, $result, $id, $id_name);
-        };
 
-        // test_fun
+            test_fun!($test_fun, $type, get_build_info);
+        };
     }
 
     build_info_impl!(BuildStatus, super::BuildStatus, ffi::CL_PROGRAM_BUILD_STATUS, "CL_PROGRAM_BUILD_STATUS", test_build_status);
@@ -69,9 +91,7 @@ mod information {
 }
 
 /// `Program` is a high-level type which maps to the low-level `cl_program` OpenCL type.
-/// An object of type `Program` acts as a reference to an OpenCL program. Hence, cloning
-/// a program is a shallow copy.
-/// The reference counter of a program is incremented on cloning and decrementing on dropping.
+/// An object of type `Program` acts as a ref-counted reference to an OpenCL program.
 #[derive(PartialEq, Eq)]
 pub struct Program {
     program: ffi::cl_program,
@@ -127,7 +147,7 @@ pub use self::source_error::{SourceError, SourceErrorKind};
 pub use self::build_error::{BuildError, BuildErrorKind};
 
 impl Builder {
-    /// Start creating a program from an iterator of source strings and a context.
+    /// Start creating a program from an iterator of source strings for a given context.
     ///
     /// # Errors
     /// * `SourceErrorKind::NoSources` if `sources` does not produce any elements.
@@ -135,7 +155,7 @@ impl Builder {
     /// # Panics
     /// Panics if the host or a device fails to allocate resources.
     pub fn create_with_sources<'a, I>(sources: I, context: &Context) -> source_error::Result<Builder>
-        where I: Iterator<Item = &'a str>
+        where I: IntoIterator<Item = &'a str>
     {
         let (mut sources, lengths): (Vec<_>, Vec<_>) =
             sources.into_iter()
@@ -161,6 +181,37 @@ impl Builder {
         Ok(expect!(result, ffi::CL_OUT_OF_RESOURCES, ffi::CL_OUT_OF_HOST_MEMORY))
     }
 
+    /// Build a program (i.e. compile + link) with specified `options`.
+    ///
+    /// # Examples
+    /// ```rust
+    /// # extern crate gprust;
+    /// use gprust::{Context, program};
+    ///
+    /// # fn main_() -> Result<(), &'static str> {
+    /// let context = Context::default().ok_or("no default context")?;
+    /// let program = program::Builder::create_with_sources(
+    ///     Some("__kernel void my_kernel(__global float * buffer) {
+    ///         buffer[get_global_id(0)] *= 2;
+    ///     }"),
+    ///     &context
+    /// ).expect("I did provide a source");
+    /// if let Ok(program) = program.build_with_options("") {
+    ///     /* do something with `program` */
+    /// }
+    /// # Ok(())
+    /// # }
+    /// # fn main() { main_().unwrap(); }
+    /// ```
+    ///
+    /// # Errors
+    /// * `BuildErrorKind::CompilerNotAvailable` if one of the devices does not have an available compiler.
+    /// * `BuildErrorKind::InvalidBuildOptions` if the options string contained invalid options.
+    /// * `BuildErrorKind::BuildProgramFailure(log)` if the build failed. The build log can be get
+    /// through `log` or `get_build_info::<program::information::BuildLog>`.
+    ///
+    /// # Panics
+    /// Panics if the host or a device fails to allocate resources.
     pub fn build_with_options(self, options: &str) -> build_error::Result<Program> {
         use std::ffi::CString;
 
@@ -192,12 +243,30 @@ impl Builder {
         Ok(expect!(result, ffi::CL_OUT_OF_HOST_MEMORY, ffi::CL_OUT_OF_RESOURCES))
     }
 
+    /// Call `build_with_options` with an empty options string.
+    ///
+    /// # Errors
+    /// * `BuildErrorKind::CompilerNotAvailable` if one of the devices does not have an available compiler.
+    /// * `BuildErrorKind::InvalidBuildOptions` if the options string contained invalid options.
+    /// * `BuildErrorKind::BuildProgramFailure(log)` if the build failed. The build log can be get
+    /// through `log` or `get_build_info::<program::information::BuildLog>`.
+    ///
+    /// # Panics
+    /// Panics if the host or a device fails to allocate resources.
     pub fn build(self) -> build_error::Result<Program> {
         self.build_with_options("")
     }
 }
 
 impl Program {
+    /// Query an information to the program. `T` should be a marker type from the `information`
+    /// module implementing `ProgramInformation`.
+    ///
+    /// # Panics
+    /// Panic if the host or a device fails to allocate resources, or if an invalid information
+    /// param is passed (should only happen when a user incorrectly implements
+    /// `ProgramInformation` on their own or if the information is not supported on the program
+    /// and cargo features have not been set correctly, otherwise it is a bug).
     pub fn get_info<T: information::ProgramInformation>(&self) -> T::Result {
         let result = unsafe {
             InformationResult::get_info(|size, value, ret_size| {
@@ -219,6 +288,14 @@ impl Program {
         )
     }
 
+    /// Query a build information to the program. `T` should be a marker type from the `information`
+    /// module implementing `BuildInformation`.
+    ///
+    /// # Panics
+    /// Panic if the host or a device fails to allocate resources, or if an invalid information
+    /// param is passed (should only happen when a user incorrectly implements
+    /// `BuildInformation` on their own or if the information is not supported on the program
+    /// and cargo features have not been set correctly, otherwise it is a bug).
     pub fn get_build_info<T: information::BuildInformation>(&self) -> T::Result {
         let result = unsafe {
             InformationResult::get_info(|size, value, ret_size| {
@@ -244,7 +321,7 @@ impl Program {
 
 impl Clone for Program {
     fn clone(&self) -> Self {
-        catch_ffi(unsafe { ffi::clRetainProgram(self.program) });
+        catch_ffi(unsafe { ffi::clRetainProgram(self.program) }).unwrap();
 
         Program {
             program: self.program,
@@ -254,6 +331,6 @@ impl Clone for Program {
 
 impl Drop for Program {
     fn drop(&mut self) {
-        catch_ffi(unsafe { ffi::clReleaseProgram(self.program) });
+        catch_ffi(unsafe { ffi::clReleaseProgram(self.program) }).unwrap();
     }
 }

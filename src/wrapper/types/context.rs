@@ -138,9 +138,7 @@ impl InformationResult<usize> for Properties {
 }
 
 /// `Context` is a high-level type which maps to the low-level `cl_context` OpenCL type.
-/// An object of type `Context` acts as a reference to an OpenCL context. Hence, cloning
-/// a context is a shallow copy.
-/// The reference counter of a context is incremented on cloning and decrementing on dropping.
+/// An object of type `Context` acts as a ref-counted reference to an OpenCL context.
 #[derive(PartialEq, Eq)]
 pub struct Context {
     context: ffi::cl_context,
@@ -227,12 +225,12 @@ impl Context {
     ///
     /// # Panics
     /// Panic if the host or a device fails to allocate resources.
-    pub fn create<'a, I: Iterator<Item = &'a Device>>(devices: I, properties: Properties)
+    pub fn create<'a, I: IntoIterator<Item = &'a Device>>(devices: I, properties: Properties)
         -> creation_error::Result<Self>
     {
         use std::ptr;
 
-        let device_ids: Vec<_> = devices.map(|d| unsafe { d.underlying() }).collect();
+        let device_ids: Vec<_> = devices.into_iter().map(|d| unsafe { d.underlying() }).collect();
 
         if device_ids.is_empty() {
             return Err(CreationErrorKind::NoDevice.into());
@@ -286,7 +284,7 @@ impl Context {
     pub fn default() -> Option<Context> {
         use wrapper::types::device::Device;
 
-        Device::default().and_then(|d| Context::create(Some(d).iter(), Properties::new()).ok())
+        Device::default().and_then(|d| Context::create(Some(&d), Properties::new()).ok())
     }
 
     /// Query an information to the context. `T` should be a marker type from the `information`
@@ -387,14 +385,14 @@ fn test_relation_to_properties() {
 
     let platform = Platform::default().unwrap();
     for d in platform.get_devices(device::TypeBuilder::new().cpu().gpu().finish()) {
-        let context = Context::create(Some(&d).into_iter(), Properties::new()).unwrap();
+        let context = Context::create(Some(&d), Properties::new()).unwrap();
         assert_eq!(
             Properties::new(),
             context.get_info::<information::Properties>()
         );
 
         let properties = Properties::new().set_platform(platform.clone());
-        let context = Context::create(Some(&d).into_iter(), properties.clone()).unwrap();
+        let context = Context::create(Some(&d), properties.clone()).unwrap();
         assert_eq!(
             properties,
             context.get_info::<information::Properties>()

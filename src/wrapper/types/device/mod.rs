@@ -202,7 +202,7 @@ impl InformationResult<usize> for PartitionProperties {
 /// `Device` is a high-level type which maps to the low-level `cl_device_id` OpenCL type.
 /// An object of type `Device` acts as a reference to a physical or logical device. Hence, cloning
 /// a device is a shallow copy.
-/// The reference counter of a *sub*-device is incremented on cloning and decrementing on
+/// The reference counter of a *sub*-device is incremented on cloning and decremented on
 /// dropping.
 #[derive(PartialEq, Eq)]
 pub struct Device {
@@ -355,9 +355,8 @@ impl Device {
     /// if let Ok(sub_devices) = device.partition(device::PartitionType::Equally(8)) {
     ///     // Each sub-device in `sub_devices` has 8 compute units.
     ///     for sub in sub_devices {
-    ///         assert!(
-    ///             device::ParentDevice::Device(device.clone())
-    ///             ==
+    ///         assert_eq!(
+    ///             device::ParentDevice::Device(device.clone()),
     ///             sub.get_info::<device::information::ParentDevice>()
     ///         );
     ///     }
@@ -380,9 +379,8 @@ impl Device {
     /// ) {
     ///     // The device was split along the outermost cache line.
     ///     for sub in sub_devices {
-    ///         assert!(
-    ///             device::ParentDevice::Device(device.clone())
-    ///             ==
+    ///         assert_eq!(
+    ///             device::ParentDevice::Device(device.clone()),
     ///             sub.get_info::<device::information::ParentDevice>()
     ///         );
     ///     }
