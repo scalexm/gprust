@@ -50,6 +50,9 @@ pub struct CommandQueue {
     queue: ffi::cl_command_queue,
 }
 
+unsafe impl Send for CommandQueue { }
+unsafe impl Sync for CommandQueue { }
+
 mod creation_error {
     error_chain! {
         types {

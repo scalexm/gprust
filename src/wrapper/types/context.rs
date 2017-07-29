@@ -144,6 +144,9 @@ pub struct Context {
     context: ffi::cl_context,
 }
 
+unsafe impl Send for Context { }
+unsafe impl Sync for Context { }
+
 mod creation_error {
     error_chain! {
         types {

@@ -3,6 +3,9 @@
 #![warn(missing_docs)]
 
 #[macro_use] extern crate error_chain;
+extern crate futures;
+
+pub use futures::{Future, Async};
 
 mod wrapper;
 mod errors;

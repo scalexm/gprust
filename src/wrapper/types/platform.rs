@@ -43,6 +43,9 @@ pub struct Platform {
     platform_id: ffi::cl_platform_id,
 }
 
+unsafe impl Send for Platform { }
+unsafe impl Sync for Platform { }
+
 impl Platform {
     pub(super) unsafe fn from_ffi(platform_id: ffi::cl_platform_id, _: bool) -> Self {
         Platform {

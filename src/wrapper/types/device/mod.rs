@@ -209,6 +209,9 @@ pub struct Device {
     device_id: ffi::cl_device_id,
 }
 
+unsafe impl Send for Device { }
+unsafe impl Sync for Device { }
+
 /// An enum used to represent a parent device.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParentDevice {

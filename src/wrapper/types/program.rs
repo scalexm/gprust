@@ -5,6 +5,7 @@ use wrapper::types::context::Context;
 use wrapper::information::InformationResult;
 use errors::*;
 use std::ptr;
+use futures::{Poll, Future, Async};
 
 enumz!(
     BuildStatus,
@@ -41,6 +42,8 @@ pub mod information {
         ($test_fun: ident, $type: ident, $info_fun: ident) => {
             #[test]
             fn $test_fun() {
+                use futures::Future;
+
                 let context = context::Context::default().unwrap();
                 let program = super::Builder::create_with_sources(
                     Some("__kernel void addFFT(__global float * filter, __global float * temp, float coeff) {
@@ -49,7 +52,7 @@ pub mod information {
                     }"),
                     &context
                 ).unwrap();
-                let program = program.build().unwrap();
+                let program = program.build().wait().unwrap();
                 let _ = program.$info_fun::<$type>();
             }
         };
@@ -97,10 +100,17 @@ pub struct Program {
     program: ffi::cl_program,
 }
 
+unsafe impl Send for Program { }
+unsafe impl Sync for Program { }
+
 /// A builder struct for `Program` type which compiles OpenCL programs.
+#[derive(PartialEq, Eq)]
 pub struct Builder {
     program: Program,
 }
+
+unsafe impl Send for Builder { }
+unsafe impl Sync for Builder { }
 
 mod source_error {
     error_chain! {
@@ -135,7 +145,7 @@ mod build_error {
             }
 
             /// Build failed, see build log.
-            BuildProgramFailure(log: String) {
+            BuildFailed(log: String) {
                 description("build failed")
                 display("build log: {}", log)
             }
@@ -145,6 +155,44 @@ mod build_error {
 
 pub use self::source_error::{SourceError, SourceErrorKind};
 pub use self::build_error::{BuildError, BuildErrorKind};
+
+/// A type containing the future result of a build.
+pub struct FutureBuild {
+    program: build_error::Result<Program>,
+}
+
+impl Future for FutureBuild {
+    type Item = Program;
+    type Error = BuildError;
+
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        use std::mem;
+
+       if let Ok(ref program) = self.program {
+            match program.get_build_info::<information::BuildStatus>() {
+                BuildStatus::InProgress => return Ok(Async::NotReady),
+                BuildStatus::Error =>
+                    return Err(
+                        BuildErrorKind::BuildFailed(
+                            program.get_build_info::<information::BuildLog>()
+                        ).into()
+                    ),
+                _ => (),
+            };
+        }
+
+        let program = mem::replace(
+            &mut self.program,
+            Err(BuildErrorKind::CompilerNotAvailable.into())
+        );
+
+        program.map(|program| Async::Ready(program))
+    }
+}
+
+extern "C" fn build_callback(program: ffi::cl_program, _: *mut ::std::os::raw::c_void) {
+    catch_ffi(unsafe { ffi::clReleaseProgram(program) }).unwrap();
+}
 
 impl Builder {
     /// Start creating a program from an iterator of source strings for a given context.
@@ -181,12 +229,13 @@ impl Builder {
         Ok(expect!(result, ffi::CL_OUT_OF_RESOURCES, ffi::CL_OUT_OF_HOST_MEMORY))
     }
 
-    /// Build a program (i.e. compile + link) with specified `options`.
+    /// Build a program (i.e. compile + link) with specified `options`. The return value is a
+    /// future containing the program result.
     ///
     /// # Examples
     /// ```rust
     /// # extern crate gprust;
-    /// use gprust::{Context, program};
+    /// use gprust::{Context, program, Future};
     ///
     /// # fn main_() -> Result<(), &'static str> {
     /// let context = Context::default().ok_or("no default context")?;
@@ -196,7 +245,7 @@ impl Builder {
     ///     }"),
     ///     &context
     /// ).expect("I did provide a source");
-    /// if let Ok(program) = program.build_with_options("") {
+    /// if let Ok(program) = program.build_with_options("").wait() {
     ///     /* do something with `program` */
     /// }
     /// # Ok(())
@@ -205,16 +254,18 @@ impl Builder {
     /// ```
     ///
     /// # Errors
+    /// Errors that `FutureBuild` can return:
     /// * `BuildErrorKind::CompilerNotAvailable` if one of the devices does not have an available compiler.
     /// * `BuildErrorKind::InvalidBuildOptions` if the options string contained invalid options.
-    /// * `BuildErrorKind::BuildProgramFailure(log)` if the build failed. The build log can be get
-    /// through `log` or `get_build_info::<program::information::BuildLog>`.
+    /// * `BuildErrorKind::BuildFailed(log)` if the build failed. The build log can be get through
+    /// `log` or `get_build_info::<program::information::BuildLog>`.
     ///
     /// # Panics
     /// Panics if the host or a device fails to allocate resources.
-    pub fn build_with_options(self, options: &str) -> build_error::Result<Program> {
+    pub fn build_with_options(self, options: &str) -> FutureBuild {
         use std::ffi::CString;
 
+        catch_ffi(unsafe { ffi::clRetainProgram(self.program.program) }).unwrap();
         let err = unsafe {
             ffi::clBuildProgram(
                 self.program.program,
@@ -222,30 +273,36 @@ impl Builder {
                 ptr::null(),
                 CString::new(options).expect("should be valid utf8 here")
                                      .as_ptr(),
-                None,
+                Some(build_callback),
                 ptr::null_mut()
             )
         };
 
-        if err == ffi::CL_INVALID_BUILD_OPTIONS {
-            return Err(BuildErrorKind::InvalidBuildOptions.into());
+        let result = if err == ffi::CL_INVALID_BUILD_OPTIONS {
+            Err(BuildErrorKind::InvalidBuildOptions.into())
         } else if err == ffi::CL_COMPILER_NOT_AVAILABLE {
-            return Err(BuildErrorKind::CompilerNotAvailable.into());
+            Err(BuildErrorKind::CompilerNotAvailable.into())
         } else if err == ffi::CL_BUILD_PROGRAM_FAILURE {
-            return Err(
-                BuildErrorKind::BuildProgramFailure(
+            Err(
+                BuildErrorKind::BuildFailed(
                     self.program.get_build_info::<information::BuildLog>()
                 ).into()
-            );
-        }
+            )
+        } else {
+            Ok(self.program)
+        };
 
-        let result = catch_ffi(err).map(move |()| self.program );
-        Ok(expect!(result, ffi::CL_OUT_OF_HOST_MEMORY, ffi::CL_OUT_OF_RESOURCES))
+        expect!(catch_ffi(err), ffi::CL_OUT_OF_HOST_MEMORY, ffi::CL_OUT_OF_RESOURCES);
+
+        FutureBuild {
+            program: result,
+        }
     }
 
     /// Call `build_with_options` with an empty options string.
     ///
     /// # Errors
+    /// Errors that `FutureBuild` can return:
     /// * `BuildErrorKind::CompilerNotAvailable` if one of the devices does not have an available compiler.
     /// * `BuildErrorKind::InvalidBuildOptions` if the options string contained invalid options.
     /// * `BuildErrorKind::BuildProgramFailure(log)` if the build failed. The build log can be get
@@ -253,7 +310,7 @@ impl Builder {
     ///
     /// # Panics
     /// Panics if the host or a device fails to allocate resources.
-    pub fn build(self) -> build_error::Result<Program> {
+    pub fn build(self) -> FutureBuild {
         self.build_with_options("")
     }
 }
