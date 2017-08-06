@@ -111,7 +111,7 @@ impl Properties {
 impl InformationResult<usize> for Properties {
     type Item = ffi::cl_context_properties;
 
-    unsafe fn get_info<F>(function: F) -> Result<Self>
+    unsafe fn get_info<F>(function: F) -> Result<Self, RawError>
         where F: Fn(usize, *mut Self::Item, *mut usize) -> ffi::cl_int
     {
         let mut properties: Vec<ffi::cl_context_properties> = InformationResult::get_info(function)?;
@@ -147,40 +147,39 @@ pub struct Context {
 unsafe impl Send for Context { }
 unsafe impl Sync for Context { }
 
-mod creation_error {
-    error_chain! {
-        types {
-            CreationError, CreationErrorKind, ResultExt, Result;
-        }
+/// An error returned by `Context::create`.
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
+pub enum CreationError {
+    /// No device was provided.
+    NoDevice,
 
-        errors {
-            /// No device was provided.
-            NoDevice {
-                description("no device was provided")
-            }
+    /// The `CL_CONTEXT_INTEROP_USER_SYNC` property is not supported, typically for
+    /// devices which support an OpenCL / OpenGL sharing extension
+    /// (cf https://www.khronos.org/registry/OpenCL/specs/opencl-1.2-extensions.pdf, p43).
+    InteropUserSyncNotSupported,
 
-            /// The `CL_CONTEXT_INTEROP_USER_SYNC` property is not supported, typically for
-            /// devices which support an OpenCL / OpenGL sharing extension
-            /// (cf https://www.khronos.org/registry/OpenCL/specs/opencl-1.2-extensions.pdf, p43).
-            InteropUserSyncNotSupported {
-                description("CL_CONTEXT_INTEROP_USER_SYNC property is not supported")
-            }
+    /// No platform was specified, and a platform could not be selected automatically.
+    CannotSelectPlatform,
 
-            /// No platform was specified, and a platform could not be selected automatically.
-            CannotSelectPlatform {
-                description("could not select a platform")
-            }
+    /// One of the devices was not available (can be checked through
+    /// `Device::get_info::<device::information::Available>`).
+    DeviceNotAvailable,
+}
 
-            /// One of the devices was not available (can be checked through
-            /// `Device::get_info::<device::information::Available>`).
-            DeviceNotAvailable {
-                description("one of the devices was not available")
-            }
+impl fmt::Display for CreationError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            CreationError::NoDevice =>
+                write!(f, "no device was provided"),
+            CreationError::InteropUserSyncNotSupported =>
+                write!(f, "`CL_CONTEXT_INTEROP_USER_SYNC` property is not supported"),
+            CreationError::CannotSelectPlatform =>
+                write!(f, "could not select a platform"),
+            CreationError::DeviceNotAvailable =>
+                write!(f, "one of the devices was not available"),
         }
     }
 }
-
-pub use self::creation_error::{CreationError, CreationErrorKind};
 
 impl Context {
     unsafe fn from_ffi(context: ffi::cl_context, retain: bool) -> Self {
@@ -218,25 +217,25 @@ impl Context {
     /// ```
     ///
     /// # Errors
-    /// * `CreationErrorKind::NoDevice` if `devices` is empty.
-    /// * `CreationErrorKind::InteropUserSyncNotSupported` if `set_interop_user_sync` was
+    /// * `CreationError::NoDevice` if `devices` is empty.
+    /// * `CreationError::InteropUserSyncNotSupported` if `set_interop_user_sync` was
     /// called on `properties`, and the device does not support it (e.g. a device supporting a
     /// OpenCL / OpenGL sharing extension).
-    /// * `CreationErrorKind::CannotSelectPlatform` if no platform were specified in `properties`,
+    /// * `CreationError::CannotSelectPlatform` if no platform were specified in `properties`,
     /// and a platform could not be selected automatically.
-    /// * `CreationErrorKind::DeviceNotAvailable` if one of the devices was not available.
+    /// * `CreationError::DeviceNotAvailable` if one of the devices was not available.
     ///
     /// # Panics
     /// Panic if the host or a device fails to allocate resources.
     pub fn create<'a, I: IntoIterator<Item = &'a Device>>(devices: I, properties: Properties)
-        -> creation_error::Result<Self>
+        -> Result<Self, CreationError>
     {
         use std::ptr;
 
         let device_ids: Vec<_> = devices.into_iter().map(|d| unsafe { d.underlying() }).collect();
 
         if device_ids.is_empty() {
-            return Err(CreationErrorKind::NoDevice.into());
+            return Err(CreationError::NoDevice);
         }
 
         let mut error = 0;
@@ -263,15 +262,15 @@ impl Context {
             // `Platform` type should only carry valid platforms. So necessarily, this is because
             // of the former reason.
 
-            return Err(CreationErrorKind::CannotSelectPlatform.into());
+            return Err(CreationError::CannotSelectPlatform);
         } else if error == ffi::CL_DEVICE_NOT_AVAILABLE {
-            return Err(CreationErrorKind::DeviceNotAvailable.into());
+            return Err(CreationError::DeviceNotAvailable);
         } else if error == ffi::CL_INVALID_VALUE || error == ffi::CL_INVALID_PROPERTY {
             // The only possible invalid thing is the fact that `CL_INTEROP_USER_SYNC` may be
             // unsupported.
             // Note that according to the specification, the error in this case should be
             // `CL_INVALID_PROPERTY`. Thanks to Apple, we also have to check `CL_INVALID_VALUE`.
-            return Err(CreationErrorKind::InteropUserSyncNotSupported.into());
+            return Err(CreationError::InteropUserSyncNotSupported);
         }
 
         // Other errors will cause panic.

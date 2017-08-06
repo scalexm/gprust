@@ -31,7 +31,7 @@ macro_rules! bitfield {
         impl ::wrapper::information::InformationResult<usize> for $name {
             type Item = ::wrapper::ffi::cl_bitfield;
 
-            unsafe fn get_info<F>(function: F) -> Result<Self>
+            unsafe fn get_info<F>(function: F) -> Result<Self, RawError>
                 where F: Fn(usize, *mut Self::Item, *mut usize) -> ::wrapper::ffi::cl_int
             {
                 use wrapper::information::InformationResult;
@@ -112,7 +112,7 @@ macro_rules! enumz {
         impl ::wrapper::information::InformationResult<usize> for $name {
             type Item = $type;
 
-            unsafe fn get_info<F>(function: F) -> Result<Self>
+            unsafe fn get_info<F>(function: F) -> Result<Self, RawError>
                 where F: Fn(usize, *mut Self::Item, *mut usize) -> ::wrapper::ffi::cl_int
             {
                 use wrapper::information::InformationResult;
@@ -129,7 +129,7 @@ macro_rules! map_ffi_impl {
         impl ::wrapper::information::InformationResult<usize> for $name {
             type Item = $type;
 
-            unsafe fn get_info<F>(function: F) -> Result<Self>
+            unsafe fn get_info<F>(function: F) -> Result<Self, RawError>
                 where F: Fn(usize, *mut Self::Item, *mut usize) -> ::wrapper::ffi::cl_int
             {
                 use wrapper::information::InformationResult;
@@ -142,11 +142,11 @@ macro_rules! map_ffi_impl {
         impl ::wrapper::information::InformationResult<usize> for Vec<$name> {
             type Item = $type;
 
-            unsafe fn get_info<F>(function: F) -> Result<Self>
+            unsafe fn get_info<F>(function: F) -> Result<Self, RawError>
                 where F: Fn(usize, *mut Self::Item, *mut usize) -> ::wrapper::ffi::cl_int
             {
                 use wrapper::information::InformationResult;
-                let vec: Result<Vec<_>> = InformationResult::get_info(function);
+                let vec: Result<Vec<_>, _> = InformationResult::get_info(function);
                 Ok(vec?.into_iter().map(|val| $name::from_ffi(val, true)).collect())
             }
         }
@@ -154,7 +154,7 @@ macro_rules! map_ffi_impl {
         impl ::wrapper::information::InformationResult<::wrapper::ffi::cl_uint> for Vec<$name> {
             type Item = $type;
 
-            unsafe fn get_info<F>(function: F) -> Result<Self>
+            unsafe fn get_info<F>(function: F) -> Result<Self, RawError>
                 where F: Fn(
                     ::wrapper::ffi::cl_uint,
                     *mut Self::Item,
@@ -162,7 +162,7 @@ macro_rules! map_ffi_impl {
                 ) -> ::wrapper::ffi::cl_int
             {
                 use wrapper::information::InformationResult;
-                let vec: Result<Vec<_>> = InformationResult::get_info(function);
+                let vec: Result<Vec<_>, _> = InformationResult::get_info(function);
                 Ok(vec?.into_iter().map(|val| $name::from_ffi(val, true)).collect())
             }
         }
@@ -192,3 +192,4 @@ pub mod context;
 pub mod command_queue;
 pub mod mem;
 pub mod program;
+pub mod kernel;

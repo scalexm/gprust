@@ -6,9 +6,9 @@ macro_rules! expect {
         match $result {
             Ok(value) => value,
             $(
-            Err(err @ Error(ErrorKind::RawError($error), _)) => panic!("{:?}", err),
+            Err(err @ RawError($error)) => panic!("{}", err),
             )*
-            Err(err) => panic!("unexpected error, this is a bug: {:?}", err),
+            Err(err) => panic!("unexpected error, this is a bug: {}", err),
         }
     };
 }

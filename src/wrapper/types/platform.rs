@@ -188,7 +188,7 @@ impl Platform {
             })
         };
 
-        if let &Err(Error(ErrorKind::RawError(ffi::CL_DEVICE_NOT_FOUND), _)) = &result {
+        if let &Err(RawError(ffi::CL_DEVICE_NOT_FOUND)) = &result {
             return Vec::new();
         }
 

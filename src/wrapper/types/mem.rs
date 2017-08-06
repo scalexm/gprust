@@ -6,6 +6,7 @@ use wrapper::information::InformationResult;
 use errors::*;
 use std::mem;
 use std::iter::{IntoIterator, ExactSizeIterator};
+use std::fmt;
 
 bitfield_builder!(
     [Flags, FlagsBuilder, "Flags"],
@@ -62,33 +63,31 @@ pub struct Buffer {
     buffer: ffi::cl_mem,
 }
 
-mod creation_error {
-    error_chain! {
-        types {
-            CreationError, CreationErrorKind, ResultExt, Result;
-        }
+/// An error returned by `Buffer::create`.
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
+pub enum CreationError {
+    /// No data was provided, or `Buffer::create` was used with an iterator of zero-sized type.
+    NoData,
 
-        errors {
-            /// No data was provided, or `Buffer::create` was used with an iterator of zero-sized type.
-            NoData {
-                description("no data was provided (ZST not supported)")
-            }
+    /// The memory flags were invalid (some fields are mutually exclusive).
+    InvalidFlags(&'static str),
 
-            /// The memory flags were invalid (some fields are mutually exclusive).
-            InvalidFlags(s: &'static str) {
-                description("invalid flags")
-                display("{}", s)
-            }
+    /// Failed to allocate data.
+    AllocationFailure
+}
 
-            /// Failed to allocate data.
-            AllocationFailure {
-                description("failed to allocate memory")
-            }
+impl fmt::Display for CreationError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            CreationError::NoData =>
+                write!(f, "no data was provided (ZST not supported)"),
+            CreationError::InvalidFlags(s) =>
+                write!(f, "invalid flags: {}", s),
+            CreationError::AllocationFailure =>
+                write!(f, "failed to allocate memory")
         }
     }
 }
-
-pub use self::creation_error::{CreationError, CreationErrorKind};
 
 impl Buffer {
     /// Allocate a new buffer from an iterable object. Properties of the memory object can be set
@@ -113,23 +112,23 @@ impl Buffer {
     /// ```
     ///
     /// # Errors
-    /// * `CreationErrorKind::NoData` if no data was provided.
-    /// * `CreationErrorKind::InvalidFlags(explanation)` if mutually exclusive fields were set.
+    /// * `CreationError::NoData` if no data was provided.
+    /// * `CreationError::InvalidFlags(explanation)` if mutually exclusive fields were set.
     /// An explanation string is provided through `explanation`.
-    /// * `CreationErrorKind::AllocationFailure` if the allocation failed.
+    /// * `CreationError::AllocationFailure` if the allocation failed.
     ///
     /// # Panics
     /// Panic if the host or a device fails to allocate resources.
-    pub fn create<I>(data: I, context: &Context, mut flags: Flags) -> creation_error::Result<Self>
+    pub fn create<I>(data: I, context: &Context, mut flags: Flags) -> Result<Self, CreationError>
         where I: IntoIterator, I::IntoIter: ExactSizeIterator
     {
         if (flags.read_write() && flags.read_only()) || (flags.read_write() && flags.write_only())
             || (flags.read_only() && flags.write_only())
         {
             return Err(
-                CreationErrorKind::InvalidFlags(
+                CreationError::InvalidFlags(
                     "`read_write`, `read_only` and `write_only` are mutually exclusive"
-                ).into()
+                )
             );
         }
 
@@ -137,9 +136,9 @@ impl Buffer {
             || (flags.host_read_only() && flags.host_write_only())
         {
             return Err(
-                CreationErrorKind::InvalidFlags(
+                CreationError::InvalidFlags(
                     "`host_no_access`, `host_read_only` and `host_write_only` are mutually exclusive"
-                ).into()
+                )
             );
         }
 
@@ -147,7 +146,7 @@ impl Buffer {
         let size = mem::size_of::<I::Item>() * data.len();
 
         if size == 0 {
-            return Err(CreationErrorKind::NoData.into());
+            return Err(CreationError::NoData);
         }
 
         let data: Vec<_> = data.collect();
@@ -159,13 +158,13 @@ impl Buffer {
                 context.underlying(),
                 flags.bitfield,
                 size,
-                data.as_ptr() as _,
+                Box::into_raw(data.into_boxed_slice()) as _,
                 &mut error
             )
         };
 
         if error == ffi::CL_INVALID_BUFFER_SIZE || error == ffi::CL_MEM_OBJECT_ALLOCATION_FAILURE {
-            return Err(CreationErrorKind::AllocationFailure.into());
+            return Err(CreationError::AllocationFailure);
         }
 
         let result = catch_ffi(error).map(|()| Buffer { buffer });

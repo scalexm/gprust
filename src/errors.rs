@@ -1,16 +1,17 @@
-//! A module for errors boilerplate.
+//! A module for OpenCL errors.
 
 use wrapper::ffi;
+use std::fmt;
 
-error_chain! {
-    errors {
-        /// `RawError(err)` where `err` is an error code (a negative integer) returned by an
-        /// OpenCL function. This error type is only used for panicking. Other modules will chain
-        /// their own error types when necessary.
-        RawError(err: ffi::cl_int) {
-            description("raw error")
-            display("OpenCL error {}: `{}`", err, error_string(*err))
-        }
+/// `RawError(err)` where `err` is an error code (a negative integer) returned by an
+/// OpenCL function. This error type is only used for panicking. Other modules will use
+/// their own error types when necessary.
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
+pub struct RawError(pub ffi::cl_int);
+
+impl fmt::Display for RawError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "OpenCL error {}: `{}`", self.0, error_string(self.0))
     }
 }
 
@@ -78,9 +79,9 @@ pub fn error_string(err: ffi::cl_int) -> &'static str {
 }
 
 /// Convert an error code in a `Result`. Error code `0` means success.
-pub fn catch_ffi(err: ffi::cl_int) -> Result<()> {
+pub fn catch_ffi(err: ffi::cl_int) -> Result<(), RawError> {
     match err {
         ffi::CL_SUCCESS => Ok(()),
-        _ => Err(ErrorKind::RawError(err).into()),
+        _ => Err(RawError(err)),
     }
 }

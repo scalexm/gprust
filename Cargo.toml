@@ -4,8 +4,8 @@ version = "0.1.0"
 authors = ["scalexm <martin.alex32@hotmail.fr>"]
 
 [dependencies]
-error-chain = "0.10"
 futures = "0.1.14"
+lazy_static = "0.2"
 
 [[bin]]
 name = "bin"

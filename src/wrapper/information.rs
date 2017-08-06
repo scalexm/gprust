@@ -47,14 +47,14 @@ pub trait InformationResult<SizeType>: Sized {
     /// A `RawError` will be returned if the error returned by `function` is non-null.
     /// Usually, this means that an invalid OpenCL object or information param was abstracted in
     /// `function`.
-    unsafe fn get_info<F>(function: F) -> Result<Self>
+    unsafe fn get_info<F>(function: F) -> Result<Self, RawError>
         where F: Fn(SizeType, *mut Self::Item, *mut SizeType) -> ffi::cl_int;
 }
 
 impl InformationResult<usize> for String {
     type Item = u8;
 
-    unsafe fn get_info<F>(function: F) -> Result<Self>
+    unsafe fn get_info<F>(function: F) -> Result<Self, RawError>
         where F: Fn(usize, *mut Self::Item, *mut usize) -> ffi::cl_int
     {
         // We retrieve the size in bytes of the string, including the null terminator.
@@ -68,10 +68,10 @@ impl InformationResult<usize> for String {
             let mut raw = vec![0; size];
             catch_ffi(function(size, raw.as_mut_ptr(), ptr::null_mut()))?;
 
-            // Remove the null terminator.
-            let _ = raw.pop().expect("should have at least 1 char here");
-
-            Ok(String::from_utf8(raw).expect("invalid utf8"))
+            Ok(
+                String::from_utf8(raw.into_iter().take_while(|c| *c != 0).collect())
+                    .expect("should be valid utf8")
+            )
         }
     }
 }
@@ -81,10 +81,10 @@ impl InformationResult<usize> for String {
 impl InformationResult<usize> for bool {
     type Item = ffi::cl_bool;
 
-    unsafe fn get_info<F>(function: F) -> Result<Self>
+    unsafe fn get_info<F>(function: F) -> Result<Self, RawError>
         where F: Fn(usize, *mut Self::Item, *mut usize) -> ffi::cl_int
     {
-        let result: Result<ffi::cl_bool> = InformationResult::get_info(function);
+        let result: Result<ffi::cl_bool, _> = InformationResult::get_info(function);
         result.map(|value| value != 0)
     }
 }
@@ -95,7 +95,7 @@ macro_rules! vec_result_impl {
         impl InformationResult<ffi::cl_uint> for Vec<$type> {
             type Item = $type;
 
-            unsafe fn get_info<F>(function: F) -> Result<Self>
+            unsafe fn get_info<F>(function: F) -> Result<Self, RawError>
                 where F: Fn(ffi::cl_uint, *mut Self::Item, *mut ffi::cl_uint) -> ffi::cl_int
             {
                 // We retrieve the number of elements in the vector.
@@ -117,7 +117,7 @@ macro_rules! vec_result_impl {
         impl InformationResult<usize> for Vec<$type> {
             type Item = $type;
 
-            unsafe fn get_info<F>(function: F) -> Result<Self>
+            unsafe fn get_info<F>(function: F) -> Result<Self, RawError>
                 where F: Fn(usize, *mut Self::Item, *mut usize) -> ffi::cl_int
             {
                 // We retrieve the *total size* in bytes of the vector.
@@ -145,7 +145,7 @@ macro_rules! result_impl {
         impl InformationResult<usize> for $type {
             type Item = $type;
 
-            unsafe fn get_info<F>(function: F) -> Result<Self>
+            unsafe fn get_info<F>(function: F) -> Result<Self, RawError>
                 where F: Fn(usize, *mut Self::Item, *mut usize) -> ffi::cl_int
             {
                 // Do not modify this `0` default value: see comment in

@@ -125,7 +125,7 @@ impl PartitionType {
 impl InformationResult<usize> for Option<PartitionType> {
     type Item = ffi::cl_device_partition_property;
 
-    unsafe fn get_info<F>(function: F) -> Result<Self>
+    unsafe fn get_info<F>(function: F) -> Result<Self, RawError>
         where F: Fn(usize, *mut Self::Item, *mut usize) -> ffi::cl_int
     {
         let mut properties: Vec<_> = InformationResult::get_info(function)?;
@@ -187,7 +187,7 @@ impl PartitionProperties {
 impl InformationResult<usize> for PartitionProperties {
     type Item = ffi::cl_device_partition_property;
 
-    unsafe fn get_info<F>(function: F) -> Result<Self>
+    unsafe fn get_info<F>(function: F) -> Result<Self, RawError>
         where F: Fn(usize, *mut Self::Item, *mut usize) -> ffi::cl_int
     {
         let properties: Vec<_> = InformationResult::get_info(function)?;
@@ -225,7 +225,7 @@ pub enum ParentDevice {
 impl InformationResult<usize> for ParentDevice {
     type Item = ffi::cl_device_id;
 
-    unsafe fn get_info<F>(function: F) -> Result<Self>
+    unsafe fn get_info<F>(function: F) -> Result<Self, RawError>
         where F: Fn(usize, *mut Self::Item, *mut usize) -> ffi::cl_int
     {
         use std::ptr;
@@ -247,32 +247,31 @@ impl InformationResult<usize> for ParentDevice {
     }
 }
 
-mod partition_error {
-    error_chain! {
-        types {
-            PartitionError, PartitionErrorKind, ResultExt, Result;
-        }
+/// An error returned by `Device::partition`.
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
+pub enum PartitionError {
+    /// The device does not support this partition type.
+    NotSupported,
 
-        errors {
-            /// The device does not support this partition type.
-            NotSupported {
-                description("partition not supported")
-            }
+    /// The arguments following the partition were invalid.
+    InvalidArguments,
 
-            /// The arguments following the partition were invalid.
-            InvalidArguments {
-                description("invalid arguments")
-            }
+    /// The device could not be further partitioned.
+    Failed,
+}
 
-            /// The device could not be further partitioned.
-            Failed {
-                description("partition failed")
-            }
+impl fmt::Display for PartitionError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            PartitionError::NotSupported =>
+                write!(f, "partition not supported"),
+            PartitionError::InvalidArguments =>
+                write!(f, "invalid arguments"),
+            PartitionError::Failed =>
+                write!(f, "partition failed"),
         }
     }
 }
-
-pub use self::partition_error::{PartitionError, PartitionErrorKind};
 
 impl Device {
     unsafe fn from_ffi(device_id: ffi::cl_device_id, retain: bool) -> Self {
@@ -316,7 +315,7 @@ impl Device {
         self.device_id
     }
 
-    unsafe fn partition_unchecked(&self, partition: &[isize]) -> Result<Vec<Device>> {
+    unsafe fn partition_unchecked(&self, partition: &[isize]) -> Result<Vec<Device>, RawError> {
         use std::ptr;
 
         // We retrieve the number of sub-devices that this partition will create.
@@ -394,29 +393,29 @@ impl Device {
     /// ```
     ///
     /// # Errors
-    /// * `PartitionErrorKind::NotSupported` if `PartitionProperty::PartitionEqually` is not
+    /// * `PartitionError::NotSupported` if `PartitionProperty::PartitionEqually` is not
     /// supported.
-    /// * `PartitionErrorKind::InvalidValue` if the parameters of the partition type were invalid.
-    /// * `PartitionErrorKind::Failed` if the partition failed.
+    /// * `PartitionError::InvalidValue` if the parameters of the partition type were invalid.
+    /// * `PartitionError::Failed` if the partition failed.
     ///
     /// # Panics
     /// Same as `get_info`.
     pub fn partition(&self, partition: PartitionType)
-        -> partition_error::Result<Vec<Device>>
+        -> Result<Vec<Device>, PartitionError>
     {
         if !partition.is_supported(self.get_info::<information::PartitionProperties>()) {
-            return Err(PartitionErrorKind::NotSupported.into());
+            return Err(PartitionError::NotSupported);
         }
 
         let partition = partition.to_ffi();
         let result = unsafe { self.partition_unchecked(&partition) };
 
-        if let &Err(Error(ErrorKind::RawError(ffi::CL_DEVICE_PARTITION_FAILED), _)) = &result {
-            return Err(PartitionErrorKind::Failed.into());
+        if let &Err(RawError(ffi::CL_DEVICE_PARTITION_FAILED)) = &result {
+            return Err(PartitionError::Failed);
         }
 
-        if let &Err(Error(ErrorKind::RawError(ffi::CL_INVALID_VALUE), _)) = &result {
-            return Err(PartitionErrorKind::InvalidArguments.into());
+        if let &Err(RawError(ffi::CL_INVALID_VALUE)) = &result {
+            return Err(PartitionError::InvalidArguments);
         }
 
         Ok(expect!(result, ffi::CL_OUT_OF_RESOURCES, ffi::CL_OUT_OF_HOST_MEMORY))

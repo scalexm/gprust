@@ -2,10 +2,13 @@
 
 use wrapper::ffi;
 use wrapper::types::context::Context;
+use wrapper::types::kernel::Kernel;
 use wrapper::information::InformationResult;
 use errors::*;
 use std::ptr;
 use futures::{Poll, Future, Async};
+use std::ffi::CString;
+use std::fmt;
 
 enumz!(
     BuildStatus,
@@ -112,53 +115,50 @@ pub struct Builder {
 unsafe impl Send for Builder { }
 unsafe impl Sync for Builder { }
 
-mod source_error {
-    error_chain! {
-        types {
-            SourceError, SourceErrorKind, ResultExt, Result;
-        }
+/// An error returned by `Builder::create_with_sources`.
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
+pub enum SourceError {
+    /// No sources were provided.
+    NoSources,
+}
 
-        errors {
-            /// No sources were provided.
-            NoSources {
-                description("no sources were provided")
-            }
+impl fmt::Display for SourceError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            SourceError::NoSources => write!(f, "no sources were provided"),
         }
     }
 }
 
-mod build_error {
-    error_chain! {
-        types {
-            BuildError, BuildErrorKind, ResultExt, Result;
-        }
+/// An error returned by `FutureBuild`.
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub enum BuildError {
+    /// One of the devices does not have an available compiler.
+    CompilerNotAvailable,
 
-        errors {
-            /// One of the devices does not have an available compiler.
-            CompilerNotAvailable {
-                description("a compiler is not available for one of the devices")
-            }
+    /// The options provided are invalid.
+    InvalidBuildOptions,
 
-            /// The options provided are invalid.
-            InvalidBuildOptions {
-                description("invalid build options")
-            }
+    /// Build failed, see build log.
+    BuildFailed(String),
+}
 
-            /// Build failed, see build log.
-            BuildFailed(log: String) {
-                description("build failed")
-                display("build log: {}", log)
-            }
+impl fmt::Display for BuildError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            BuildError::CompilerNotAvailable
+                => write!(f, "a compiler was not available for one of the devices"),
+            BuildError::InvalidBuildOptions
+                => write!(f, "invalid build options"),
+            BuildError::BuildFailed(ref log)
+                => write!(f, "build failed, log:\n{}", log),
         }
     }
 }
-
-pub use self::source_error::{SourceError, SourceErrorKind};
-pub use self::build_error::{BuildError, BuildErrorKind};
 
 /// A type containing the future result of a build.
 pub struct FutureBuild {
-    program: build_error::Result<Program>,
+    program: Result<Program, BuildError>,
 }
 
 impl Future for FutureBuild {
@@ -173,9 +173,9 @@ impl Future for FutureBuild {
                 BuildStatus::InProgress => return Ok(Async::NotReady),
                 BuildStatus::Error =>
                     return Err(
-                        BuildErrorKind::BuildFailed(
+                        BuildError::BuildFailed(
                             program.get_build_info::<information::BuildLog>()
-                        ).into()
+                        )
                     ),
                 _ => (),
             };
@@ -183,7 +183,7 @@ impl Future for FutureBuild {
 
         let program = mem::replace(
             &mut self.program,
-            Err(BuildErrorKind::CompilerNotAvailable.into())
+            Err(BuildError::CompilerNotAvailable)
         );
 
         program.map(|program| Async::Ready(program))
@@ -198,11 +198,11 @@ impl Builder {
     /// Start creating a program from an iterator of source strings for a given context.
     ///
     /// # Errors
-    /// * `SourceErrorKind::NoSources` if `sources` does not produce any elements.
+    /// * `SourceError::NoSources` if `sources` does not produce any elements.
     ///
     /// # Panics
     /// Panics if the host or a device fails to allocate resources.
-    pub fn create_with_sources<'a, I>(sources: I, context: &Context) -> source_error::Result<Builder>
+    pub fn create_with_sources<'a, I>(sources: I, context: &Context) -> Result<Builder, SourceError>
         where I: IntoIterator<Item = &'a str>
     {
         let (mut sources, lengths): (Vec<_>, Vec<_>) =
@@ -211,7 +211,7 @@ impl Builder {
                    .unzip();
         
         if sources.len() == 0 {
-            return Err(SourceErrorKind::NoSources.into());
+            return Err(SourceError::NoSources);
         }
         
         let mut error = 0;
@@ -245,7 +245,7 @@ impl Builder {
     ///     }"),
     ///     &context
     /// ).expect("I did provide a source");
-    /// if let Ok(program) = program.build_with_options("").wait() {
+    /// if let Ok(program) = program.build_with_options("-Werror").wait() {
     ///     /* do something with `program` */
     /// }
     /// # Ok(())
@@ -255,38 +255,35 @@ impl Builder {
     ///
     /// # Errors
     /// Errors that `FutureBuild` can return:
-    /// * `BuildErrorKind::CompilerNotAvailable` if one of the devices does not have an available compiler.
-    /// * `BuildErrorKind::InvalidBuildOptions` if the options string contained invalid options.
-    /// * `BuildErrorKind::BuildFailed(log)` if the build failed. The build log can be get through
+    /// * `BuildError::CompilerNotAvailable` if one of the devices does not have an available compiler.
+    /// * `BuildError::InvalidBuildOptions` if the options string contained invalid options.
+    /// * `BuildError::BuildFailed(log)` if the build failed. The build log can be get through
     /// `log` or `get_build_info::<program::information::BuildLog>`.
     ///
     /// # Panics
     /// Panics if the host or a device fails to allocate resources.
     pub fn build_with_options(self, options: &str) -> FutureBuild {
-        use std::ffi::CString;
-
         catch_ffi(unsafe { ffi::clRetainProgram(self.program.program) }).unwrap();
         let err = unsafe {
             ffi::clBuildProgram(
                 self.program.program,
                 0,
                 ptr::null(),
-                CString::new(options).expect("should be valid utf8 here")
-                                     .as_ptr(),
+                CString::new(options).expect("should be a valid string").as_ptr(),
                 Some(build_callback),
                 ptr::null_mut()
             )
         };
 
         let result = if err == ffi::CL_INVALID_BUILD_OPTIONS {
-            Err(BuildErrorKind::InvalidBuildOptions.into())
+            Err(BuildError::InvalidBuildOptions)
         } else if err == ffi::CL_COMPILER_NOT_AVAILABLE {
-            Err(BuildErrorKind::CompilerNotAvailable.into())
+            Err(BuildError::CompilerNotAvailable)
         } else if err == ffi::CL_BUILD_PROGRAM_FAILURE {
             Err(
-                BuildErrorKind::BuildFailed(
+                BuildError::BuildFailed(
                     self.program.get_build_info::<information::BuildLog>()
-                ).into()
+                )
             )
         } else {
             Ok(self.program)
@@ -373,6 +370,38 @@ impl Program {
             ffi::CL_OUT_OF_HOST_MEMORY,
             ffi::CL_INVALID_VALUE
         )
+    }
+
+    /// Return a list of kernel names the program contains.
+    ///
+    /// # Panics
+    /// Same as `get_info`.
+    pub fn kernel_names(&self) -> Vec<String> {
+        self.get_info::<information::KernelNames>()
+            .split(';')
+            .map(|s| s.to_owned())
+            .collect()
+    }
+
+    /// Create a kernel, defined in the program matching the name `kernel_name`.
+    ///
+    /// # Panics
+    /// TO COMPLETE.
+    pub fn create_kernel(&self, kernel_name: &str) -> Kernel {
+        let mut err = 0;
+        let kernel = unsafe {
+            ffi::clCreateKernel(
+                self.program,
+                CString::new(kernel_name).expect("should be a valid string").as_ptr(),
+                &mut err
+            )
+        };
+
+        if err != 0 {
+            panic!("error");
+        }
+
+        unsafe { Kernel::from_ffi(kernel, false) }
     }
 }
 

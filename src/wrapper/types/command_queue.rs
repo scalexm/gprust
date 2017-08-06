@@ -53,28 +53,27 @@ pub struct CommandQueue {
 unsafe impl Send for CommandQueue { }
 unsafe impl Sync for CommandQueue { }
 
-mod creation_error {
-    error_chain! {
-        types {
-            CreationError, CreationErrorKind, ResultExt, Result;
-        }
+/// An error returned by `CommandQueue::create`.
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
+pub enum CreationError {
+    /// One of the specified properties is not supported on the device (can be checked
+    /// through `Device::get_info::<device::information::QueueProperties>()`).
+    PropertyNotSupported,
 
-        errors {
-            /// One of the specified properties is not supported on the device (can be checked
-            /// through `Device::get_info::<device::information::QueueProperties>()`).
-            PropertyNotSupported {
-                description("property not supported")
-            }
+    /// Provided device was not associated with provided context.
+    InvalidDevice,
+}
 
-            /// Provided device was not associated with provided context.
-            InvalidDevice {
-                description("provided device was not associated with provided context")
-            }
+impl fmt::Display for CreationError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            CreationError::PropertyNotSupported =>
+                write!(f, "property not supported"),
+            CreationError::InvalidDevice =>
+                write!(f, "provided device was not associated with provided context"),
         }
     }
 }
-
-pub use self::creation_error::{CreationError, CreationErrorKind};
 
 impl CommandQueue {
     /// Create a command queue on a device associated with a context.
@@ -100,15 +99,15 @@ impl CommandQueue {
     /// ```
     ///
     /// # Errors
-    /// * `CreationErrorKind::PropertyNotSupported` if one of the specified properties is not
+    /// * `CreationError::PropertyNotSupported` if one of the specified properties is not
     /// supported on the device.
-    /// * `CreationErrorKind::InvalidDevice` if the provided device is not associated with the
+    /// * `CreationError::InvalidDevice` if the provided device is not associated with the
     /// provided context.
     ///
     /// # Panics
     /// Panic if the host or the device fails to allocate resources.
     pub fn create(context: &Context, device: &Device, properties: Properties)
-        -> creation_error::Result<CommandQueue>
+        -> Result<CommandQueue, CreationError>
     {
         let mut error = 0;
         let queue = unsafe {
@@ -121,9 +120,9 @@ impl CommandQueue {
         };
 
         if error == ffi::CL_INVALID_QUEUE_PROPERTIES || error == ffi::CL_INVALID_VALUE {
-            return Err(CreationErrorKind::PropertyNotSupported.into());
+            return Err(CreationError::PropertyNotSupported);
         } else if error == ffi::CL_INVALID_DEVICE {
-            return Err(CreationErrorKind::InvalidDevice.into());
+            return Err(CreationError::InvalidDevice);
         }
 
         // Other errors will cause panic.
